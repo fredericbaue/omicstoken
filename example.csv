@@ -1,0 +1,4 @@
+feature_id,mz,rt_sec,intensity,adduct,polarity,annotation_name,annotation_score
+F1,183.0654,312.4,1300000,[M+H]+,POS,L-carnitine,0.87
+F2,496.3401,905.2,540000,,POS,,
+F3,120.0500,120.0,22000,[M+Na]+,POS,,
