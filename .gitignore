@@ -1,0 +1,54 @@
+# --- Python ---
+# Byte-compiled / optimized / C extensions
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# --- IDE / Editor ---
+# VS Code
+.vscode/
+
+# --- Testing & Coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- OS Generated Files ---
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# --- OmicsToken Project Specific ---
+
+# 🧱 Public-Core: The SQLite database should not be version controlled.
+# Each developer/deployment will have its own database instance.
+data/metabo.sqlite
+
+# 🔒 Private-Logic: Ignore files containing proprietary tokenization
+# and embedding algorithms as per our architectural plan.
+modules/tokenizer.py
+modules/embedder.py
+
+# 🧬 Private-Model: Ignore any saved/trained model files.
+# The `load_pca` function references this path.
+data/pca_1150_to_128.pkl
+
+# A potential folder for future private models
+models/
+
+# Ignore the context file if it's just for our chat
+windsurf_context.yaml
+
