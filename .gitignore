@@ -10,6 +10,9 @@ __pycache__/
 venv/
 ENV/
 
+# Environment Variables (API Keys, Secrets)
+.env
+
 # Distribution / packaging
 build/
 dist/
@@ -52,3 +55,6 @@ models/
 # Ignore the context file if it's just for our chat
 windsurf_context.yaml
 
+
+# Ignore all data directory content
+data/

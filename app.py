@@ -1,278 +1,137 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-
-
+from fastapi import Request
+from pydantic import BaseModel, Field
+import uvicorn
+import os
+import shutil
 import pandas as pd
-import numpy as np
-import json, os, sqlite3, pickle
-import faiss
-from sklearn.decomposition import PCA
-from sklearn.metrics.pairwise import cosine_similarity
+from typing import List, Optional
+import logging
 
-APP_DIR = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()
-DATA_DIR = os.path.join(APP_DIR, "data")
-DB_PATH = os.path.join(DATA_DIR, "metabo.sqlite")
+import embeddings
+from embeddings import peptide_to_vector, EMBEDDING_DIM
+import db
+import search
+import models
+import importers
+import summarizer
+
+# --- Configuration ---
+DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-FAISS_INDEX_PATH = os.path.join(DATA_DIR, "features.faiss")
-FAISS_IDS_PATH = os.path.join(DATA_DIR, "features_ids.json")
 
-SCHEMA_VERSION = "metabo-0.1.0"
+app = FastAPI(title="Immuno-Peptidomics MVP")
 
-# -------------------- Data Models --------------------
-class Spectrum(BaseModel):
-    mz_array: List[float]
-    intensity_array: List[float]
-
-class Feature(BaseModel):
-    feature_id: str
-    mz: float
-    rt_sec: Optional[float] = None
-    intensity: float
-    adduct: Optional[str] = None
-    polarity: Optional[str] = None
-    annotation_name: Optional[str] = None
-    annotation_score: Optional[float] = None
-    msms_spectrum: Optional[Spectrum] = None
-    tokens: Optional[List[str]] = None
-    fragment_embedding: Optional[List[float]] = None
-
-class Run(BaseModel):
-    run_id: str
-    instrument: Optional[str] = None
-    method: Optional[str] = None
-    polarity: Optional[str] = None
-    schema_version: str = Field(default=SCHEMA_VERSION)
-    features: List[Feature]
-    meta: Dict[str, Any] = {}
-
-app = FastAPI(title="Metabo MVP (Windows)", version="0.1.3")
-
-# Mount static files (like favicon.ico)
-# This must come AFTER `app` is created.
+# Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# -------------------- Database Helpers --------------------
-def db():
-    con = sqlite3.connect(DB_PATH)
-    con.execute("""CREATE TABLE IF NOT EXISTS runs(
-        run_id TEXT PRIMARY KEY,
-        instrument TEXT, method TEXT, polarity TEXT,
-        schema_version TEXT, meta_json TEXT
-    )""")
-    con.execute("""CREATE TABLE IF NOT EXISTS features(
-        run_id TEXT, feature_id TEXT,
-        mz REAL, rt_sec REAL, intensity REAL,
-        adduct TEXT, polarity TEXT,
-        annotation_name TEXT, annotation_score REAL,
-        tokens_json TEXT,
-        PRIMARY KEY(run_id, feature_id)
-    )""")
-    con.execute("""CREATE TABLE IF NOT EXISTS embeddings(
-        run_id TEXT, feature_id TEXT,
-        method TEXT, polarity TEXT,
-        vec_json TEXT,
-        PRIMARY KEY(run_id, feature_id)
-    )""")
-    return con
-
-# -------------------- Tokenization --------------------
-def tokenize_feature(feat: Feature, run_meta: Dict[str, Any]):
-    # m/z bin: 50–1200 with 0.1 Da bins
-    mz_idx = max(0, int(((feat.mz or 0.0) - 50.0) / 0.1))
-    # RT bucket: 0–60 min, 30 s buckets (2 per minute)
-    rt_bucket = int(((feat.rt_sec or 0.0) / 60.0) * 2)
-    # Intensity band: log10 scaled, clamped 0..8
-    i_band = int(np.clip(np.log10(max(feat.intensity, 1.0)), 0, 8))
-    tokens = [
-        f"MZ_{mz_idx}",
-        f"RT_{rt_bucket}",
-        f"I_{i_band}",
-        f"POL_{str(feat.polarity or run_meta.get('polarity') or 'NA').upper()}",
-    ]
-    if feat.adduct:
-        tokens.append("ADDUCT_" + feat.adduct.replace("+", "PLUS").replace("-", "MINUS"))
-    if run_meta.get("instrument"):
-        tokens.append("INSTR_" + str(run_meta["instrument"]).replace(" ", "_")[:24])
-    # Make tokenization robust to missing meta values
-    tokens.append("METHOD_" + str(run_meta.get("method") or "NA").upper())
-    return tokens
-
-# -------------------- Feature → Vector --------------------
-def feature_to_vector(feat: Feature) -> np.ndarray:
-    """Turn simple properties into a 128-D vector (cosine-normalized)."""
-    base = np.array(
-        [(feat.mz or 0.0), (feat.rt_sec or 0.0), np.log1p(feat.intensity)], dtype=np.float32
-    )
-    base = base / (np.linalg.norm(base) + 1e-8)
-    z = np.zeros((128,), dtype=np.float32)
-    z[:3] = base
-    return z
-
-# (Optional future) load a PCA model for MS/MS -> 128D embeddings
-def load_pca() -> PCA:
-    path = os.path.join(DATA_DIR, "pca_1150_to_128.pkl")
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            return pickle.load(f)
-    return PCA(n_components=128, random_state=42)
-
-# -------------------- Vector Indexing (FAISS) --------------------
-def rebuild_faiss_index():
-    """
-    Queries all embeddings from the DB, builds a FAISS index, and saves it.
-    This is slow and should be run as a background task in a real app.
-    """
-    print("Rebuilding FAISS index...")
-    con = db()
-    # For this MVP, we rebuild the index for ALL methods/polarities together.
-    # A real app might build separate indexes per method/polarity.
-    rows = con.execute("SELECT run_id, feature_id, vec_json FROM embeddings").fetchall()
-    con.close()
-
-    if not rows:
-        print("No embeddings found to build index.")
-        return 0
-
-    ids = [(row[0], row[1]) for row in rows]
-    vectors = np.array([json.loads(row[2]) for row in rows], dtype=np.float32)
-
-    d = vectors.shape[1]  # vector dimension
-    index = faiss.IndexFlatL2(d)  # Using L2 distance; for cosine, we need to normalize
-    faiss.normalize_L2(vectors) # Normalize vectors to use L2 as cosine similarity
-    index.add(vectors)
-
-    faiss.write_index(index, FAISS_INDEX_PATH)
-    with open(FAISS_IDS_PATH, "w") as f:
-        json.dump(ids, f)
-    print(f"✅ FAISS index rebuilt with {index.ntotal} vectors.")
-    return index.ntotal
-
-# -------------------- API Endpoints --------------------
-@app.get("/health")
-def health():
-    return {"ok": True, "schema": SCHEMA_VERSION}
+# CORS (Optional, good for dev)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/", include_in_schema=False)
-def root():
+async def root():
     return RedirectResponse(url="/docs", status_code=307)
 
-@app.post("/metabo/embed/{run_id}")
+@app.post("/peptide/embed/{run_id}")
 def embed(run_id: str):
-    """Tokenize and vectorize each feature, then persist the vectors."""
-    con = db()
-    cur = con.cursor()
-    cur.execute("SELECT instrument, method, polarity, meta_json FROM runs WHERE run_id=?", (run_id,))
-    row = cur.fetchone()
-    if not row:
+    """Vectorize each peptide in a run and persist the vectors."""
+    con = db.get_db_connection(DATA_DIR)
+    
+    # Verify run exists
+    run = db.get_run(con, run_id)
+    if not run:
         con.close()
         raise HTTPException(404, "run_id not found")
-    instrument, method, polarity, meta_json = row
-    run_meta = json.loads(meta_json or "{}")
 
-    cur.execute(
-        "SELECT feature_id,mz,rt_sec,intensity,adduct,polarity FROM features WHERE run_id=?",
-        (run_id,),
-    )
-    feats = cur.fetchall()
-
+    features = db.get_features_for_run(con, run_id)
+    
     count = 0
-    for (fid, mz, rt, inten, adduct, pol) in feats:
-        f = Feature(
-            feature_id=fid,
-            mz=float(mz) if mz is not None else 0.0,
-            rt_sec=float(rt) if rt is not None else 0.0,
-            intensity=float(inten),
-            adduct=adduct,
-            polarity=pol,
-        )
-        tokens = tokenize_feature(
-            f,
-            {"instrument": instrument, "method": method, "polarity": polarity, **run_meta},
-        )
-        vec = feature_to_vector(f)
+    for feat in features:
+        # The core of our new engine: converting sequence to vector
+        vec = peptide_to_vector(feat.peptide_sequence)
 
-        cur.execute(
-            "UPDATE features SET tokens_json=? WHERE run_id=? AND feature_id=?",
-            (json.dumps(tokens), run_id, fid),
-        )
-        cur.execute(
-            """INSERT OR REPLACE INTO embeddings(run_id,feature_id,method,polarity,vec_json)
-               VALUES(?,?,?,?,?)""",
-            (run_id, fid, method or "", polarity or "", json.dumps(vec.tolist())),
-        )
+        # Skip if vectorization failed
+        if vec is None or vec.shape[0] != EMBEDDING_DIM:
+            print(f"Skipping embedding for feature {feat.feature_id} due to invalid sequence or vector.")
+            continue
+
+        db.insert_embedding(con, run_id, feat.feature_id, run.method or "", run.polarity or "", vec)
         count += 1
 
     con.commit()
     # After committing, rebuild the global search index
-    rebuild_faiss_index()
+    search.rebuild_faiss_index(con, DATA_DIR)
 
     con.close()
-    return {"run_id": run_id, "features_embedded": count, "method": method, "polarity": polarity}
+    return {"run_id": run_id, "peptides_embedded": count}
 
 @app.get("/upload", response_class=HTMLResponse, include_in_schema=False)
 def upload_page():
-    # A tiny HTML form (no frameworks) that posts file + fields.
     return """
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Metabo MVP - Upload</title>
+  <title>Immuno-Engine - Upload</title>
   <style>
     body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
     form { display: block; max-width: 560px; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
     label { display:block; margin-top: 1rem; font-weight: 600; }
     input, select, textarea { width: 100%; padding: .6rem; margin-top: .4rem; }
     button { margin-top: 1rem; padding: .6rem 1rem; cursor: pointer; }
-    .tip { color:#555; font-size:.9rem; }
+    .tip { color:#555; font-size:.9rem; margin-bottom: 1rem; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   </style>
 </head>
-<body>
-  <h1>Upload Metabolomics Feature Table</h1>
-  <p class="tip">Accepted files: CSV or TSV with columns: <code>feature_id, mz, intensity</code> (optional: <code>rt_sec, adduct, polarity, annotation_name, annotation_score</code>)</p>
+  <h1>Upload Peptide Table</h1>
+  <p class="tip">Accepted files: CSV/TSV from MaxQuant, DIA-NN, Spectronaut, or Generic.</p>
 
   <form action="/upload" method="post" enctype="multipart/form-data">
-    <label>Feature table file (CSV/TSV)
+    <label>Peptide table file
       <input type="file" name="file" required />
     </label>
 
     <div class="row">
       <div>
-        <label>Run ID (optional)
-          <input type="text" name="run_id" placeholder="e.g., RUN_2025_11_03_A" />
+        <label>Format
+          <select name="format">
+            <option value="auto">Auto-detect</option>
+            <option value="maxquant">MaxQuant (peptides.txt)</option>
+            <option value="diann">DIA-NN (report.tsv)</option>
+            <option value="spectronaut">Spectronaut</option>
+            <option value="generic">Generic CSV</option>
+          </select>
         </label>
       </div>
       <div>
-        <label>Instrument (optional)
-          <input type="text" name="instrument" placeholder="e.g., Q Exactive" />
+        <label>Run ID (optional)
+          <input type="text" name="run_id" placeholder="e.g., RUN_2025_11_03_A" />
         </label>
       </div>
     </div>
 
     <div class="row">
       <div>
+        <label>Instrument (optional)
+          <input type="text" name="instrument" placeholder="e.g., Q Exactive" />
+        </label>
+      </div>
+      <div>
         <label>Method (optional)
           <input type="text" name="method" placeholder="e.g., HILIC or RP" />
         </label>
       </div>
-      <div>
-        <label>Polarity (optional)
-          <select name="polarity">
-            <option value="">(none)</option>
-            <option value="POS">POS</option>
-            <option value="NEG">NEG</option>
-          </select>
-        </label>
-      </div>
     </div>
 
-    <p class="tip">Tip: If you’re unsure, leave fields blank—defaults are okay.</p>
     <button type="submit">Upload & Ingest</button>
   </form>
 
@@ -284,194 +143,197 @@ def upload_page():
     """
 
 @app.post("/upload", response_class=HTMLResponse, include_in_schema=False)
-async def upload_handler(request: Request,
+async def upload_handler(request: Request, background_tasks: BackgroundTasks,
                          file: UploadFile = File(...),
                          run_id: str = Form(""),
                          instrument: str = Form(""),
                          method: str = Form(""),
-                         polarity: str = Form("")):
+                         format: str = Form("auto")):
     """
-    This converts the simple form fields into the JSON 'meta' your /metabo/ingest
-    endpoint expects, then calls the same ingest logic under the hood.
+    Handles file uploads, detects format, ingests data, and triggers embedding.
     """
     # --- Ingest Logic ---
-    # Parse CSV/TSV
     name = file.filename or "upload.csv"
-    sep = "\t" if name.endswith(".tsv") else ","
+    sep = "\t" if name.endswith(".tsv") or name.endswith(".txt") else ","
     await file.seek(0)
-    df = pd.read_csv(file.file, sep=sep)
+    
+    try:
+        df = pd.read_csv(file.file, sep=sep)
+    except Exception as e:
+        raise HTTPException(400, f"Failed to parse CSV: {e}")
 
-    # Build the meta dict from simple fields
+    # Use the importers module to parse the dataframe
+    try:
+        features = importers.parse_upload(df, fmt=format)
+    except Exception as e:
+        raise HTTPException(400, f"Import failed: {e}")
+
+    # Build meta dict
     meta_dict = {
         "run_id": run_id.strip() or None,
         "instrument": instrument.strip() or None,
         "method": method.strip() or None,
-        "polarity": polarity.strip() or None,
+        "original_filename": name
     }
     run_id_final = meta_dict.get("run_id") or f"RUN_{pd.Timestamp.utcnow().strftime('%Y%m%d_%H%M%S')}"
 
     # Store in SQLite
-    con = db()
-    con.execute(
-        "INSERT OR REPLACE INTO runs(run_id,instrument,method,polarity,schema_version,meta_json) VALUES(?,?,?,?,?,?)",
-        (run_id_final, meta_dict.get("instrument"), meta_dict.get("method"), meta_dict.get("polarity"), SCHEMA_VERSION, json.dumps(meta_dict)),
-    )
+    con = db.get_db_connection(DATA_DIR)
+    db.insert_run(con, run_id_final, meta_dict)
 
-    for _, r in df.iterrows():
-        con.execute(
-            """INSERT OR REPLACE INTO features(run_id,feature_id,mz,rt_sec,intensity,adduct,polarity,annotation_name,annotation_score,tokens_json)
-               VALUES(?,?,?,?,?,?,?,?,?,?)""",
-            (
-                run_id_final,
-                str(r.get("feature_id")),
-                float(r.get("mz", np.nan))
-                if not pd.isna(r.get("mz", np.nan))
-                else None,
-                float(r.get("rt_sec", np.nan))
-                if not pd.isna(r.get("rt_sec", np.nan))
-                else None,
-                float(r.get("intensity")),
-                r.get("adduct"),
-                r.get("polarity"),
-                r.get("annotation_name"),
-                float(r.get("annotation_score", np.nan))
-                if not pd.isna(r.get("annotation_score", np.nan))
-else None,
-                None,
-            ),
-        )
+    for feat in features:
+        db.insert_feature(con, run_id_final, feat)
+        
     con.commit()
     con.close()
-    rows_ingested = len(df)
-    # --- End Ingest Logic ---
+    rows_ingested = len(features)
 
-    # Rewind file pointer before reusing the UploadFile (safety)
-    await file.seek(0)
+    # --- Background Tasks ---
+    def _background_work(run_id_to_process: str):
+        # 1. Embed
+        embed_result = embed(run_id=run_id_to_process)
+        print(f"Background: Embedded {embed_result['peptides_embedded']} peptides.")
+        # 2. Summarize (Pre-compute? Or just let user request it later? For now, just print)
+        print(f"Background: Ready for summarization.")
 
-    try:
-        # --- NEW: Automatically trigger embedding ---
-        embed_result = embed(run_id=run_id_final)
-        features_embedded = embed_result["features_embedded"]
+    background_tasks.add_task(_background_work, run_id_final)
 
-        # --- Create a helpful link for the user ---
-        # Get the first feature_id from the uploaded file to create a sample search link.
-        # We need to rewind the file one last time to read its contents.
-        await file.seek(0)
-        df_for_link = pd.read_csv(file.file, sep="\t" if (file.filename or "").endswith(".tsv") else ",")
-        first_feature_id = df_for_link["feature_id"].iloc[0] if not df_for_link.empty else None
+    # --- Success Response ---
+    first_feature_id = features[0].feature_id if features else None
+    search_link_html = ""
+    if first_feature_id:
+        search_url = f"/peptide/search/{run_id_final}/{first_feature_id}"
+        search_link_html = f'<li><a href="{search_url}" target="_blank">Test search for first peptide: "{first_feature_id}"</a></li>'
 
-        search_link_html = ""
-        if first_feature_id:
-            search_url = f"/metabo/search/{run_id_final}/{first_feature_id}"
-            search_link_html = f'<li><a href="{search_url}" target="_blank">Test search for first feature: "{first_feature_id}"</a></li>'
+    return HTMLResponse(f"""
+        <h2>Upload complete</h2>
+        <p>Run ID: <b>{run_id_final}</b></p>
+        <p>✅ Ingested <b>{rows_ingested}</b> peptides using format <b>{format}</b>.</p>
+        <p>Embedding running in background...</p>
+        <p>
+          Next steps:
+          <ul>
+            {search_link_html}
+            <li>
+                <form action="/summary/run/{run_id_final}" method="post" target="_blank" style="display:inline;">
+                    <button type="submit" style="background:none; border:none; text-decoration:underline; color:blue; cursor:pointer; padding:0;">
+                        Generate Summary for this Run
+                    </button>
+                </form>
+            </li>
+            <li><a href="/docs" target="_blank">API Docs</a></li>
+          </ul>
+        </p>
+        <p><a href="/upload">Upload another file</a></p>
+    """, status_code=200)
 
-        # Friendly success page with quick links
-        return HTMLResponse(f"""
-            <h2>Upload complete</h2>
-            <p>Run ID: <b>{run_id_final}</b></p>
-            <p>✅ Rows ingested: <b>{rows_ingested}</b></p>
-            <p>✅ Features embedded: <b>{features_embedded}</b></p>
-            <p>
-              Next steps:
-              <ul>
-                {search_link_html}
-                <li><a href="/docs#/default/similar_metabo_search__run_id___feature_id__get" target="_blank">Go to API docs for custom search</a></li>
-              </ul>
-            </p>
-            <p><a href="/upload">Upload another file</a></p>
-        """, status_code=200)
-
-    except Exception as e:
-        return HTMLResponse(f"<h3>Upload failed</h3><pre>{e}</pre><p><a href='/upload'>Back</a></p>", status_code=400)
-
-
-@app.get("/metabo/search/{run_id}/{feature_id}")
+@app.get("/peptide/search/{run_id}/{feature_id}")
 def similar(run_id: str, feature_id: str, k: int = 5):
-    """Find nearest neighbors of a feature using cosine similarity."""
-    if not os.path.exists(FAISS_INDEX_PATH) or not os.path.exists(FAISS_IDS_PATH):
-        raise HTTPException(404, "FAISS index not found. Please run the /embed endpoint first.")
-
-    # Load the FAISS index and the ID mapping
-    index = faiss.read_index(FAISS_INDEX_PATH)
-    with open(FAISS_IDS_PATH, "r") as f:
-        ids_map = json.load(f)
-
-    # The new IDs map is just a list of [run_id, feature_id]
-    # We need to find the index of our query feature
+    """Find peptides with similar biophysical properties."""
+    con = db.get_db_connection(DATA_DIR)
     try:
-        # Find the query vector from the database first
-        con = db()
-        cur = con.cursor()
-        cur.execute(
-            "SELECT vec_json FROM embeddings WHERE run_id=? AND feature_id=?",
-            (run_id, feature_id),
-        )
-        row = cur.fetchone()
+        return search.search_similar_peptides(con, DATA_DIR, run_id, feature_id, k)
+    except HTTPException as e:
+        raise e
+    finally:
         con.close()
-        if not row:
-            raise HTTPException(404, "embedding not found (did you run /embed?)")
-        query_vector = np.array(json.loads(row[0]), dtype=np.float32).reshape(1, -1)
-        faiss.normalize_L2(query_vector) # Normalize the query vector as well
 
-    except ValueError:
-        raise HTTPException(404, f"Feature '{feature_id}' not found in the search index for run '{run_id}'.")
+@app.post("/summary/run/{run_id}")
+def get_run_summary(run_id: str):
+    """
+    Generates a text summary of the run using the Summarization Engine.
+    """
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        summary = summarizer.generate_summary(run_id, con)
+        return summary
+    finally:
+        con.close()
 
-    # Unlike before, we don't need to query the DB for the vector, it's in the index!
-    con = db()
-    cur = con.cursor()
-    # We need to get the original properties of the query feature to display them
-    cur.execute(
-        "SELECT mz, rt_sec, intensity FROM features WHERE run_id=? AND feature_id=? LIMIT 1",
-        (run_id, feature_id),
-    )
-    query_feat_props = cur.fetchone()
-    
-    con.close() # Close connection after fetching query vector
+@app.get("/runs")
+def list_runs():
+    """List all runs with summary statistics."""
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        return db.get_run_summaries(con)
+    finally:
+        con.close()
 
-    if not query_feat_props:
-        raise HTTPException(404, "embedding not found (did you run /embed?)")
+@app.get("/runs/{run_id}")
+def get_run_details(run_id: str):
+    """Get detailed information about a specific run."""
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        run = db.get_run(con, run_id)
+        if not run:
+            raise HTTPException(404, "Run not found")
+            
+        # Get counts
+        cur = con.cursor()
+        cur.execute("SELECT COUNT(*) FROM features WHERE run_id=?", (run_id,))
+        n_features = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM embeddings WHERE run_id=?", (run_id,))
+        n_embeddings = cur.fetchone()[0]
+        
+        # Check for first feature for search link
+        cur.execute("SELECT feature_id FROM features WHERE run_id=? LIMIT 1", (run_id,))
+        row = cur.fetchone()
+        first_feature_id = row[0] if row else None
+        
+        return {
+            "run": run,
+            "stats": {
+                "n_features": n_features,
+                "n_embeddings": n_embeddings
+            },
+            "links": {
+                "summary": f"/summary/run/{run_id}",
+                "search_example": f"/peptide/search/{run_id}/{first_feature_id}" if first_feature_id else None
+            }
+        }
+    finally:
+        con.close()
 
-    # Prepare the query vector
-    # The vector from FAISS is already normalized.
-    
-    # Search the index
-    # FAISS L2 distance on normalized vectors is related to cosine similarity.
-    # D^2 = 2 - 2 * cos(sim), so smaller distance is higher similarity.
-    distances, indices = index.search(query_vector, k)
-
-    # Enrich results with feature details
-    out = []
-    for i, idx in enumerate(indices[0]):
-        if idx == -1: continue # Should not happen in a simple index
-
-        neighbor_run_id, neighbor_feature_id = ids_map[idx]
-        dist = distances[0][i]
-        # Convert L2 distance back to cosine similarity
-        similarity = 1.0 - (dist**2) / 2.0
-
-        # Re-open connection to fetch details. In a real app, use a connection pool or Depends().
-        with sqlite3.connect(DB_PATH) as con_details:
-            cur_details = con_details.cursor()
-            cur_details.execute(
-                "SELECT mz, rt_sec, intensity, annotation_name FROM features WHERE run_id=? AND feature_id=?",
-                (neighbor_run_id, neighbor_feature_id)
-            )
-            feat_row = cur_details.fetchone()
-
-        # For profile search, intensity of a single point is less meaningful.
-        # We can show the intensity from the first sample as an example.
-        neighbor_intensity = feat_row[2] if feat_row else None
-
-        out.append({
-            "run_id": neighbor_run_id,
-            "feature_id": neighbor_feature_id,
-            "similarity": float(similarity),
-            "mz": feat_row[0] if feat_row else "N/A",
-            "rt_sec": feat_row[1] if feat_row else "N/A",
-            "intensity": neighbor_intensity,
-            "annotation_name": feat_row[3] if feat_row else None,
-        })
-
-    query_props_dict = {"mz": query_feat_props[0] or "N/A", "rt_sec": query_feat_props[1] or "N/A", "intensity_example": query_feat_props[2]}
-
-    return {"query": {"run_id": run_id, "feature_id": feature_id, **query_props_dict}, "neighbors": out}
+@app.get("/compare/{run_id_1}/{run_id_2}")
+def compare_runs(run_id_1: str, run_id_2: str):
+    """
+    Compares two runs to find shared and unique peptides.
+    """
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        # Fetch features for both runs
+        features_1 = db.get_features_for_run(con, run_id_1)
+        features_2 = db.get_features_for_run(con, run_id_2)
+        
+        if not features_1:
+            raise HTTPException(404, f"Run {run_id_1} not found or empty")
+        if not features_2:
+            raise HTTPException(404, f"Run {run_id_2} not found or empty")
+            
+        # Extract sequences
+        seqs_1 = set(f.peptide_sequence for f in features_1)
+        seqs_2 = set(f.peptide_sequence for f in features_2)
+        
+        # Calculate intersections and differences
+        shared = seqs_1.intersection(seqs_2)
+        unique_1 = seqs_1 - seqs_2
+        unique_2 = seqs_2 - seqs_1
+        
+        return {
+            "run_1": run_id_1,
+            "run_2": run_id_2,
+            "stats": {
+                "total_run_1": len(seqs_1),
+                "total_run_2": len(seqs_2),
+                "shared_count": len(shared),
+                "unique_run_1_count": len(unique_1),
+                "unique_run_2_count": len(unique_2),
+                "jaccard_index": len(shared) / len(seqs_1.union(seqs_2)) if seqs_1 or seqs_2 else 0
+            },
+            "shared_peptides": list(shared)[:100], # Limit for display
+            "unique_run_1": list(unique_1)[:100],
+            "unique_run_2": list(unique_2)[:100]
+        }
+    finally:
+        con.close()

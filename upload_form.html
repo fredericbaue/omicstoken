@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Immuno-Engine - Upload Peptide Data</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
+    form { display: block; max-width: 560px; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
+    label { display:block; margin-top: 1rem; font-weight: 600; }
+    input, select, textarea { width: 100%; padding: .6rem; margin-top: .4rem; }
+    button { margin-top: 1rem; padding: .6rem 1rem; cursor: pointer; }
+    .tip { color:#555; font-size:.9rem; margin-bottom: 1rem; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Upload Peptide Table</h1>
+  <p class="tip">Accepted files: CSV with columns: <code>feature_id, peptide_sequence, intensity</code>.<br/><code>peptide_sequence</code> should contain the amino acid sequence.</p>
+
+  <form action="/upload" method="post" enctype="multipart/form-data">
+    <label>Peptide table file (CSV)
+      <input type="file" name="file" required />
+    </label>
+
+    <div class="row">
+      <div>
+        <label>Run ID (optional)
+          <input type="text" name="run_id" placeholder="e.g., RUN_2025_11_03_A" />
+        </label>
+      </div>
+      <div>
+        <label>Instrument (optional)
+          <input type="text" name="instrument" placeholder="e.g., Q Exactive" />
+        </label>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Method (optional)
+          <input type="text" name="method" placeholder="e.g., HILIC or RP" />
+        </label>
+      </div>
+      <div>
+        <label>Polarity (optional)
+          <select name="polarity">
+            <option value="">(none)</option>
+            <option value="POS">POS</option>
+            <option value="NEG">NEG</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <p class="tip">Tip: If you’re unsure, leave fields blank—defaults are okay.</p>
+    <button type="submit">Upload & Ingest</button>
+  </form>
+
+  <p style="margin-top:2rem;">Or use the API docs: <a href="/docs">/docs</a></p>
+</body>
+</html>

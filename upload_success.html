@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Immuno-Engine - Upload Success</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
+  </style>
+</head>
+<body>
+  <h2>Upload complete</h2>
+  <p>Run ID: <b>{{ run_id }}</b></p>
+  <p>✅ Rows ingested: <b>{{ rows_ingested }}</b></p>
+  <p>
+    The embedding and indexing process has been started in the background.
+    It may take a moment for the index to be fully rebuilt, especially for large files.
+  </p>
+  <p>
+    Next steps:
+    <ul>
+      {{ search_link_html | safe }}
+      <li><a href="/docs#/default/similar_peptide_search__run_id___feature_id__get" target="_blank">Go to API docs for custom search</a></li>
+    </ul>
+  </p>
+  <p><a href="/upload">Upload another file</a></p>
+</body>
+</html>
