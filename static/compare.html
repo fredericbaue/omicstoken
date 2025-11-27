@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Compare Runs - Immuno-Engine</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            margin: 2rem;
+            background: #f8f9fa;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            margin-bottom: 0.5rem;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: #0066cc;
+            text-decoration: none;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .compare-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 1rem;
+            align-items: flex-end;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        select {
+            width: 100%;
+            padding: 0.6rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .btn {
+            padding: 0.6rem 1.5rem;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: #0052a3;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .stat-item {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #0066cc;
+            margin-top: 0.5rem;
+        }
+
+        .peptide-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .peptide-section {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+        }
+
+        .peptide-section h3 {
+            margin-top: 0;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .peptide-list {
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .peptide-item {
+            padding: 0.5rem;
+            margin-bottom: 0.3rem;
+            background: white;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .peptide-item:hover {
+            background: #e8f4ff;
+        }
+
+        .shared {
+            border-left: 4px solid #28a745;
+        }
+
+        .unique1 {
+            border-left: 4px solid #007bff;
+        }
+
+        .unique2 {
+            border-left: 4px solid #ffc107;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #999;
+            font-family: system-ui, sans-serif;
+        }
+
+        .truncation-note {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.5rem;
+            font-family: system-ui, sans-serif;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 4px solid #dc3545;
+        }
+
+        .warning-message {
+            background: #fff3cd;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 4px solid #ffc107;
+            margin-bottom: 1rem;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0066cc;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .run-label {
+            font-family: monospace;
+            font-weight: 600;
+            color: #0066cc;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <a href="/static/runs.html" class="back-link">← Back to Runs</a>
+
+        <div class="card">
+            <h1>Compare Runs</h1>
+            <p>Select two runs to compare their peptide composition</p>
+
+            <div class="compare-form">
+                <div class="form-group">
+                    <label for="run1Select">Run 1</label>
+                    <select id="run1Select" disabled>
+                        <option>Loading runs...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="run2Select">Run 2</label>
+                    <select id="run2Select" disabled>
+                        <option>Loading runs...</option>
+                    </select>
+                </div>
+                <button id="compareBtn" class="btn" onclick="compareRuns()" disabled>
+                    Compare
+                </button>
+            </div>
+
+            <div id="errorContainer" style="margin-top:1rem;"></div>
+        </div>
+
+        <div id="results" style="display:none;">
+            <div id="warningContainer"></div>
+
+            <div class="card">
+                <h2>Comparison Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Run 1 Peptides</div>
+                        <div class="stat-value" id="run1Total">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Run 2 Peptides</div>
+                        <div class="stat-value" id="run2Total">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Shared Peptides</div>
+                        <div class="stat-value" id="sharedCount" style="color:#28a745;">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Jaccard Index</div>
+                        <div class="stat-value" id="jaccardIndex">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Peptide Sets</h2>
+                <div class="peptide-grid">
+                    <div class="peptide-section">
+                        <h3 id="unique1Header">🔵 Unique to Run 1 (<span id="unique1Count">0</span>)</h3>
+                        <div class="peptide-list" id="unique1List"></div>
+                        <div class="truncation-note" id="unique1Note" style="display:none;">
+                            Showing first 100 peptides
+                        </div>
+                    </div>
+                    <div class="peptide-section">
+                        <h3 id="sharedHeader">🟢 Shared (<span id="sharedCount2">0</span>)</h3>
+                        <div class="peptide-list" id="sharedList"></div>
+                        <div class="truncation-note" id="sharedNote" style="display:none;">
+                            Showing first 100 peptides
+                        </div>
+                    </div>
+                    <div class="peptide-section">
+                        <h3 id="unique2Header">🟡 Unique to Run 2 (<span id="unique2Count">0</span>)</h3>
+                        <div class="peptide-list" id="unique2List"></div>
+                        <div class="truncation-note" id="unique2Note" style="display:none;">
+                            Showing first 100 peptides
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/static/login.html';
+        }
+
+        let runs = [];
+        let currentRun1Id = null;
+        let currentRun2Id = null;
+
+        loadRuns();
+
+        async function loadRuns() {
+            try {
+                const res = await fetch('/runs', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        window.location.href = '/static/login.html';
+                        return;
+                    }
+                    throw new Error(`API Error: ${res.status}`);
+                }
+
+                runs = await res.json();
+                populateSelects();
+            } catch (e) {
+                showError(`Error loading runs: ${e.message}`);
+            }
+        }
+
+        function populateSelects() {
+            const run1Select = document.getElementById('run1Select');
+            const run2Select = document.getElementById('run2Select');
+            const compareBtn = document.getElementById('compareBtn');
+
+            if (runs.length < 2) {
+                run1Select.innerHTML = '<option>Need at least 2 runs to compare</option>';
+                run2Select.innerHTML = '<option>Need at least 2 runs to compare</option>';
+                return;
+            }
+
+            const options = runs.map(r =>
+                `<option value="${r.run_id}">${r.run_id} (${r.n_features} features)</option>`
+            ).join('');
+
+            run1Select.innerHTML = options;
+            run2Select.innerHTML = options;
+
+            // Pre-select different runs
+            if (runs.length >= 2) {
+                run2Select.selectedIndex = 1;
+            }
+
+            run1Select.disabled = false;
+            run2Select.disabled = false;
+            compareBtn.disabled = false;
+        }
+
+        function showError(message) {
+            const container = document.getElementById('errorContainer');
+            container.innerHTML = `<div class="error-message">${message}</div>`;
+        }
+
+        function clearError() {
+            document.getElementById('errorContainer').innerHTML = '';
+        }
+
+        function showWarning(message) {
+            const container = document.getElementById('warningContainer');
+            container.innerHTML = `<div class="warning-message">${message}</div>`;
+        }
+
+        function clearWarning() {
+            document.getElementById('warningContainer').innerHTML = '';
+        }
+
+        function getRunLabel(runId) {
+            const run = runs.find(r => r.run_id === runId);
+            if (!run) return runId;
+
+            // Return a short, readable label
+            return runId;
+        }
+
+        async function compareRuns() {
+            const run1 = document.getElementById('run1Select').value;
+            const run2 = document.getElementById('run2Select').value;
+
+            currentRun1Id = run1;
+            currentRun2Id = run2;
+
+            clearError();
+            clearWarning();
+
+            if (!run1 || !run2) return;
+
+            // Edge case: Same run selected
+            if (run1 === run2) {
+                showError('Please select two different runs to compare.');
+                return;
+            }
+
+            const compareBtn = document.getElementById('compareBtn');
+            compareBtn.innerHTML = 'Comparing<span class="loading-spinner"></span>';
+            compareBtn.disabled = true;
+
+            try {
+                const res = await fetch(`/compare/${run1}/${run2}`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+
+                if (!res.ok) {
+                    if (res.status === 404) {
+                        throw new Error('One or both runs not found. They may be empty or unavailable.');
+                    } else if (res.status === 401) {
+                        window.location.href = '/static/login.html';
+                        return;
+                    } else {
+                        throw new Error(`Server error (${res.status}). Please try again.`);
+                    }
+                }
+
+                const data = await res.json();
+                displayResults(data);
+            } catch (e) {
+                showError(`Could not compare these runs. ${e.message}`);
+            } finally {
+                compareBtn.innerHTML = 'Compare';
+                compareBtn.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            document.getElementById('results').style.display = 'block';
+
+            // Update headers with run labels
+            const run1Label = getRunLabel(currentRun1Id);
+            const run2Label = getRunLabel(currentRun2Id);
+
+            document.getElementById('unique1Header').innerHTML =
+                `🔵 Unique to <span class="run-label">${run1Label}</span> (<span id="unique1Count">${data.stats.unique_run_1_count}</span>)`;
+            document.getElementById('sharedHeader').innerHTML =
+                `🟢 Shared (<span id="sharedCount2">${data.stats.shared_count}</span>)`;
+            document.getElementById('unique2Header').innerHTML =
+                `🟡 Unique to <span class="run-label">${run2Label}</span> (<span id="unique2Count">${data.stats.unique_run_2_count}</span>)`;
+
+            // Check for edge case: Jaccard = 1 (same run or identical peptides)
+            if (data.stats.jaccard_index === 1.0) {
+                showWarning('⚠️ These runs appear to be identical (Jaccard index = 1.0)');
+            }
+
+            // Check for edge case: No shared peptides
+            if (data.stats.shared_count === 0) {
+                showWarning('⚠️ These runs have no shared peptides (Jaccard index = 0.0)');
+            }
+
+            // Stats
+            document.getElementById('run1Total').textContent = data.stats.total_run_1;
+            document.getElementById('run2Total').textContent = data.stats.total_run_2;
+            document.getElementById('sharedCount').textContent = data.stats.shared_count;
+
+            // Handle Jaccard index (protect against NaN or null)
+            const jaccardValue = data.stats.jaccard_index;
+            document.getElementById('jaccardIndex').textContent =
+                (jaccardValue !== null && !isNaN(jaccardValue)) ? jaccardValue.toFixed(3) : '0.000';
+
+            // Peptide lists with click handlers
+            displayPeptideList('unique1List', data.unique_run_1, 'unique1', 'No unique peptides', currentRun1Id);
+            displayPeptideList('sharedList', data.shared_peptides, 'shared', 'No shared peptides', currentRun1Id);
+            displayPeptideList('unique2List', data.unique_run_2, 'unique2', 'No unique peptides', currentRun2Id);
+
+            // Show truncation notes if lists are at max length (100)
+            document.getElementById('unique1Note').style.display =
+                data.unique_run_1.length >= 100 ? 'block' : 'none';
+            document.getElementById('sharedNote').style.display =
+                data.shared_peptides.length >= 100 ? 'block' : 'none';
+            document.getElementById('unique2Note').style.display =
+                data.unique_run_2.length >= 100 ? 'block' : 'none';
+        }
+
+        function displayPeptideList(elementId, peptides, className, emptyMessage, runId) {
+            const container = document.getElementById(elementId);
+
+            if (!peptides || peptides.length === 0) {
+                container.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
+                return;
+            }
+
+            container.innerHTML = peptides
+                .map(p => `<div class="peptide-item ${className}" onclick="searchPeptide('${runId}', '${p}')" title="Click to search for similar peptides">${p}</div>`)
+                .join('');
+        }
+
+        function searchPeptide(runId, peptideSeq) {
+            // Navigate to search page with this peptide pre-selected
+            // The search page would need to support a peptide query parameter
+            window.location.href = `/static/search.html?run_id=${runId}&peptide=${encodeURIComponent(peptideSeq)}`;
+        }
+    </script>
+</body>
+
+</html>

@@ -8,7 +8,7 @@ _AMINO_ALPHABET = "ACDEFGHIKLMNPQRSTVWY"
 _AMINO_INDEX = {aa: i for i, aa in enumerate(_AMINO_ALPHABET)}
 
 
-def peptide_to_vector(sequence: str) -> np.ndarray:
+def _sequence_to_basic_features(sequence: str) -> np.ndarray:
     """
     Very simple, fast, *local* embedder that does NOT require external libraries.
 
@@ -18,10 +18,6 @@ def peptide_to_vector(sequence: str) -> np.ndarray:
       - fraction of charged residues (D, E, K, R, H)
       - fraction of hydrophobic residues (A, V, I, L, M, F, Y, W)
       - plus a small fixed-length bag-of-amino-acids representation
-
-    Later, this implementation can be replaced with a real ProtTrans-based embedder,
-    but for now it's a lightweight, dependency-free embedding that always returns
-    an EMBEDDING_DIM-dimensional vector.
     """
     if not sequence or not isinstance(sequence, str):
         return np.zeros((EMBEDDING_DIM,), dtype=np.float32)
@@ -69,3 +65,14 @@ def peptide_to_vector(sequence: str) -> np.ndarray:
         vec = np.resize(vec, (EMBEDDING_DIM,)).astype(np.float32)
 
     return vec
+
+
+def peptide_to_vector(sequence: str) -> np.ndarray:
+    """
+    Public function used by the rest of the app.
+
+    Later, I can replace this implementation with a real ProtTrans-based embedder,
+    but for now it's a lightweight, dependency-free embedding that always returns
+    an EMBEDDING_DIM-dimensional vector.
+    """
+    return _sequence_to_basic_features(sequence)

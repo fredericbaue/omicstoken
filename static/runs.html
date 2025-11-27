@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Runs</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header flex-between">
+            <h1>My Runs</h1>
+            <div>
+                <a href="/static/upload.html" class="btn btn-primary">Upload New Data</a>
+                <a href="/static/compare.html" class="btn btn-secondary">Compare Runs</a>
+            </div>
+        </div>
+
+        <div id="runsList" class="grid" style="--grid-cols: 1; gap: 1rem;">
+            <!-- Run cards will be inserted here -->
+        </div>
+        <p id="loading" class="text-center text-muted" style="padding: 2rem;">Loading runs...</p>
+    </div>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('token');
+            const runsList = document.getElementById('runsList');
+            const loadingEl = document.getElementById('loading');
+
+            if (!token) {
+                loadingEl.innerHTML = 'You are not logged in. <a href="/static/login.html">Please log in</a>.';
+                return;
+            }
+
+            try {
+                const headers = { 'Authorization': 'Bearer ' + token };
+                const response = await fetch('/runs', { headers });
+
+                if (response.status === 401) {
+                    loadingEl.innerHTML = 'Your session has expired. <a href="/static/login.html">Please log in again</a>.';
+                    return;
+                }
+                if (!response.ok) {
+                    throw new Error(`Failed to load runs (status: ${response.status})`);
+                }
+
+                const runs = await response.json();
+
+                if (runs.length === 0) {
+                    loadingEl.textContent = 'No runs found. Try uploading some data!';
+                } else {
+                    loadingEl.remove();
+                    runs.forEach(run => {
+                        const card = document.createElement('div');
+                        card.id = `run-card-${run.run_id}`; // Add an ID for easy removal
+                        card.className = 'card';
+                        card.innerHTML = `
+                            <div class="flex-between">
+                                <div>
+                                    <h3 style="margin-bottom: 0.25rem;">${run.run_id}</h3>
+                                    <p class="text-sm text-muted">${run.original_filename || 'No filename'}</p>
+                                </div>
+                                <div class="flex" style="gap: 0.5rem; align-items: center;">
+                                    <div style="position: relative; display: flex; align-items: center;">
+                                        <a href="/static/search.html?run_id=${run.run_id}" class="btn btn-secondary">Search</a>
+                                        ${run.n_embeddings < run.n_features ?
+                                            `<span class="tooltip" style="margin-left: 0.5rem; cursor: help;" title="Warning: Not all features have embeddings. Some searches may fail. (${run.n_embeddings}/${run.n_features})">⚠️</span>` : ''}
+                                    </div>
+                                    <a href="/static/simple_dashboard.html?run_id=${run.run_id}" class="btn btn-secondary">Dashboard</a>
+                                    <a href="/static/summary.html?run_id=${run.run_id}" class="btn btn-secondary">Summary</a>
+                                    ${run.n_embeddings < run.n_features ?
+                                        `<button onclick="reEmbedRun('${run.run_id}')" class="btn btn-warning">Re-embed</button>` : ''
+                                    }
+                                    <a href="/static/fingerprint.html?run_id=${run.run_id}" class="btn btn-secondary">Fingerprint</a>
+                                    <button onclick="deleteRun('${run.run_id}')" class="btn btn-danger">Delete</button>
+                                </div>
+                            </div>
+                            <div class="flex text-sm text-muted" style="gap: 1.5rem; margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                                <span><strong>${run.n_features}</strong> features</span>
+                                <span><strong>${run.n_embeddings}</strong> embeddings</span>
+                                <span>Instrument: <strong>${run.instrument || 'N/A'}</strong></span>
+                            </div>
+                        `;
+                        runsList.appendChild(card);
+                    });
+                }
+            } catch (e) {
+                loadingEl.innerHTML = `<span style="color: red;">Error: ${e.message}</span>`;
+            }
+        });
+
+        async function reEmbedRun(runId) {
+            const card = document.getElementById(`run-card-${runId}`);
+            const button = card.querySelector('.btn-warning');
+            const originalText = button.innerText;
+
+            if (!confirm(`Are you sure you want to re-process embeddings for run "${runId}"?\nThis will generate any missing embeddings.`)) {
+                return;
+            }
+
+            button.disabled = true;
+            button.innerText = 'Embedding...';
+
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(`/peptide/embed/${runId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+
+                if (response.ok) {
+                    alert(`Successfully started embedding for run "${runId}". The page will now reload to reflect the changes.`);
+                    window.location.reload();
+                } else {
+                    const errorData = await response.json();
+                    alert(`Failed to start embedding: ${errorData.detail || 'Unknown error'}`);
+                    button.disabled = false;
+                    button.innerText = originalText;
+                }
+            } catch (e) {
+                alert(`An error occurred: ${e.message}`);
+            }
+        }
+
+        async function deleteRun(runId) {
+            if (!confirm(`Are you sure you want to delete run "${runId}"?\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(`/runs/${runId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+
+                if (response.ok) {
+                    // On success, remove the card from the UI
+                    document.getElementById(`run-card-${runId}`).remove();
+                } else {
+                    const errorData = await response.json();
+                    alert(`Failed to delete run: ${errorData.detail || 'Unknown error'}`);
+                }
+            } catch (e) {
+                alert(`An error occurred: ${e.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

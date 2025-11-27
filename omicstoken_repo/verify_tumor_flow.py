@@ -67,7 +67,7 @@ P54321,Protein C,200,210,0.1,0.5
     with patch("google.generativeai.GenerativeModel", return_value=mock_model):
         # Patch API key check
         import summarizer
-        summarizer.GOOGLE_API_KEY = "dummy"
+        summarizer.GEMINI_API_KEY = "dummy"
         
         response = client.post("/summary/run/TUMOR_RUN_001")
         if response.status_code == 200:

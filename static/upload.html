@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Upload Run - Immuno-Engine</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header flex-between">
+            <h1>Upload Dataset</h1>
+            <a href="/static/runs.html" class="btn btn-secondary">Back to Runs</a>
+        </div>
+
+        <div class="card" style="max-width: 800px; margin: 0 auto;">
+            <form id="uploadForm">
+                <div class="grid">
+                    <div>
+                        <label for="fileInput">Peptide Table File</label>
+                        <input type="file" id="fileInput" name="file" required
+                            style="padding: 1rem; border: 2px dashed var(--border-color); background: rgba(0,0,0,0.2); cursor: pointer;">
+                        <p class="text-sm text-muted" style="margin-top: 0.5rem;">Accepted formats: MaxQuant
+                            (peptides.txt), DIA-NN, Spectronaut, or Generic CSV.</p>
+                    </div>
+
+                    <div class="grid-2">
+                        <div>
+                            <label for="formatInput">Format</label>
+                            <select id="formatInput" name="format">
+                                <option value="auto">Auto-detect</option>
+                                <option value="maxquant">MaxQuant (peptides.txt)</option>
+                                <option value="diann">DIA-NN (report.tsv)</option>
+                                <option value="spectronaut">Spectronaut</option>
+                                <option value="generic">Generic CSV</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="runIdInput">Run ID (Optional)</label>
+                            <input type="text" id="runIdInput" name="run_id" placeholder="e.g., RUN_2025_11_03_A">
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div>
+                            <label for="instrumentInput">Instrument (Optional)</label>
+                            <input type="text" id="instrumentInput" name="instrument" placeholder="e.g., Q Exactive">
+                        </div>
+                        <div>
+                            <label for="methodInput">Method (Optional)</label>
+                            <input type="text" id="methodInput" name="method" placeholder="e.g., HILIC or RP">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary"
+                        style="width: 100%; justify-content: center; margin-top: 1rem;">
+                        Upload & Ingest
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="status" class="card" style="display: none; max-width: 800px; margin: 2rem auto; text-align: center;">
+            <!-- Success/Error content will go here -->
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = '/static/login.html';
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const statusDiv = document.getElementById('status');
+            const btn = document.querySelector('button[type="submit"]');
+
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = '<div style="padding: 2rem;"><h3>Uploading & Ingesting...</h3><p class="text-muted">This may take a moment depending on file size.</p></div>';
+            btn.disabled = true;
+            btn.innerText = "Processing...";
+
+            const formData = new FormData();
+            formData.append('file', document.getElementById('fileInput').files[0]);
+            formData.append('format', document.getElementById('formatInput').value);
+            formData.append('run_id', document.getElementById('runIdInput').value);
+            formData.append('instrument', document.getElementById('instrumentInput').value);
+            formData.append('method', document.getElementById('methodInput').value);
+
+            try {
+                const res = await fetch('/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: formData
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    statusDiv.innerHTML = `
+                        <div style="padding: 1rem;">
+                            <h2 style="color: var(--success-color)">✅ Upload Complete</h2>
+                            <p>Run ID: <strong>${data.run_id}</strong></p>
+                            <p>Ingested <strong>${data.rows_ingested}</strong> peptides.</p>
+                            <p class="text-muted">${data.message}</p>
+                            
+                            <div class="flex" style="justify-content: center; margin-top: 2rem; gap: 1rem; flex-wrap: wrap;">
+                                <a href="/static/runs.html" class="btn btn-primary" style="background: var(--success-color); border: none;">Go to My Runs</a>
+                                <a href="/static/simple_dashboard.html?run_id=${data.run_id}" class="btn btn-secondary">View Dashboard</a>
+                                <a href="/static/summary.html?run_id=${data.run_id}" class="btn btn-secondary">Generate Summary</a>
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('uploadForm').reset();
+                } else {
+                    const err = await res.text();
+                    statusDiv.innerHTML = `<h3 style="color: var(--danger-color)">Upload Failed</h3><p>${err}</p>`;
+                }
+            } catch (e) {
+                statusDiv.innerHTML = `<h3 style="color: var(--danger-color)">Error</h3><p>${e.message}</p>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Upload & Ingest";
+            }
+        });
+    </script>
+</body>
+
+</html>

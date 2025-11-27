@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Immuno-Engine Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header flex-between">
+            <div>
+                <h1>Run Dashboard</h1>
+                <p id="runInfo" class="text-muted">Loading run data...</p>
+            </div>
+            <a href="/static/runs.html" class="btn btn-secondary">Back to Runs</a>
+        </div>
+
+        <div id="loading">Loading visualization data...</div>
+
+        <div id="charts" style="display: none;">
+            <div class="grid grid-2">
+                <div class="card chart-container">
+                    <!-- This div will contain the Plotly-generated SVG/canvas -->
+                    <div id="scatterPlot"></div>
+                </div>
+                <div class="card chart-container">
+                    <!-- This div will contain the Plotly-generated SVG/canvas -->
+                    <div id="histPlot"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Top Peptides</h2>
+                <div id="tableContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const runId = urlParams.get('run_id');
+        const token = localStorage.getItem('token');
+
+        if (!runId) {
+            document.getElementById('runInfo').innerHTML = "Error: No run_id specified in URL.";
+            document.getElementById('loading').style.display = 'none';
+        } else if (!token) {
+            window.location.href = '/static/login.html';
+        } else {
+            fetchData();
+        }
+
+        async function fetchData() {
+            try {
+                const res = await fetch(`/dashboard-data/${runId}`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+
+                if (!res.ok) throw new Error(`API Error: ${res.status}`);
+
+                const data = await res.json();
+                renderDashboard(data);
+            } catch (e) {
+                document.getElementById('loading').innerHTML = `<span style="color:var(--danger-color)">Error loading data: ${e.message}</span>`;
+            }
+        }
+
+        function renderDashboard(apiData) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('charts').style.display = 'block';
+            document.getElementById('runInfo').innerHTML = `Run ID: <span style="color:var(--accent-color)">${apiData.run_id}</span> | Total Features: ${apiData.total_features}`;
+
+            const features = apiData.data;
+
+            // Plotly Dark Theme Config
+            const plotConfig = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#94a3b8' },
+                xaxis: { gridcolor: 'rgba(255,255,255,0.1)' },
+                yaxis: { gridcolor: 'rgba(255,255,255,0.1)' }
+            };
+
+            // 1. Scatter Plot: Intensity vs Hydrophobicity
+            const trace1 = {
+                x: features.map(f => f.properties.hydrophobicity),
+                y: features.map(f => f.intensity),
+                mode: 'markers',
+                type: 'scatter',
+                text: features.map(f => f.sequence),
+                marker: {
+                    size: 8,
+                    opacity: 0.7,
+                    color: features.map(f => f.properties.length),
+                    colorscale: 'Viridis',
+                    showscale: true,
+                    colorbar: { title: 'Length', titlefont: { color: '#94a3b8' }, tickfont: { color: '#94a3b8' } }
+                }
+            };
+
+            const layout1 = {
+                title: { text: 'Peptide Landscape', font: { color: '#f1f5f9', size: 18 } },
+                xaxis: { title: 'Hydrophobicity (GRAVY)', ...plotConfig.xaxis },
+                yaxis: { title: 'Intensity', type: 'log', ...plotConfig.yaxis },
+                hovermode: 'closest',
+                paper_bgcolor: plotConfig.paper_bgcolor,
+                plot_bgcolor: plotConfig.plot_bgcolor,
+                font: plotConfig.font,
+                margin: { t: 40, r: 20, b: 40, l: 60 }
+            };
+
+            Plotly.newPlot('scatterPlot', [trace1], layout1, { responsive: true });
+
+            // 2. Histogram: Length Distribution
+            const trace2 = {
+                x: features.map(f => f.properties.length),
+                type: 'histogram',
+                marker: { color: '#38bdf8', opacity: 0.8 }
+            };
+
+            const layout2 = {
+                title: { text: 'Sequence Length Distribution', font: { color: '#f1f5f9', size: 18 } },
+                xaxis: { title: 'Length (AA)', ...plotConfig.xaxis },
+                yaxis: { title: 'Count', ...plotConfig.yaxis },
+                paper_bgcolor: plotConfig.paper_bgcolor,
+                plot_bgcolor: plotConfig.plot_bgcolor,
+                font: plotConfig.font,
+                margin: { t: 40, r: 20, b: 40, l: 60 }
+            };
+
+            Plotly.newPlot('histPlot', [trace2], layout2, { responsive: true });
+
+            // 3. Simple Table
+            const tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Sequence</th>
+                            <th>Intensity</th>
+                            <th>Length</th>
+                            <th>Hydrophobicity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${features.slice(0, 10).map(f => `
+                            <tr>
+                                <td style="font-family:monospace; color: var(--accent-color);">${f.sequence}</td>
+                                <td>${f.intensity.toExponential(2)}</td>
+                                <td>${f.properties.length}</td>
+                                <td>${f.properties.hydrophobicity}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <p class="text-sm text-muted" style="margin-top:1rem;">Showing top 10 most intense peptides.</p>
+            `;
+            document.getElementById('tableContainer').innerHTML = tableHtml;
+        }
+    </script>
+</body>
+
+</html>

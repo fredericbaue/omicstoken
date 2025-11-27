@@ -70,7 +70,7 @@ def parse_tumor_csv(df: pd.DataFrame) -> List[Feature]:
             rt_sec=None,
             adduct=None,
             polarity=None,
-            metadata=meta or {}
+            metadata=meta
         ))
         
     return features
@@ -143,21 +143,15 @@ def parse_generic(df: pd.DataFrame) -> List[Feature]:
         raise ValueError(f"Generic CSV missing required columns. Found: {list(df.columns)}")
 
     for i, row in df.iterrows():
-        try:
-            intensity_val = float(row[int_col]) if pd.notna(row[int_col]) else 0.0
-        except (ValueError, TypeError):
-            intensity_val = 0.0
-
         features.append(Feature(
             feature_id=str(row[fid_col]),
             peptide_sequence=str(row[seq_col]),
-            intensity=intensity_val,
+            intensity=float(row[int_col]),
             mz=float(row[mz_col]) if mz_col and pd.notna(row[mz_col]) else 0.0,
             rt_sec=float(row[rt_col]) if rt_col and pd.notna(row[rt_col]) else None,
             adduct=None,
             polarity=None,
-            annotation_score=None,
-            metadata={}
+            annotation_score=None
         ))
     return features
 
@@ -168,20 +162,14 @@ def parse_maxquant(df: pd.DataFrame) -> List[Feature]:
     features = []
     # MaxQuant usually has 'Sequence', 'Intensity', 'id'
     for i, row in df.iterrows():
-        try:
-            intensity_val = float(row.get("Intensity", 0.0))
-        except (ValueError, TypeError):
-            intensity_val = 0.0
-            
         features.append(Feature(
             feature_id=str(row.get("id", f"MQ_{i}")),
             peptide_sequence=str(row.get("Sequence", "")),
-            intensity=intensity_val,
+            intensity=float(row.get("Intensity", 0.0)),
             mz=float(row.get("Mass", 0.0)), # Mass is not m/z but close enough for MVP placeholder
             rt_sec=float(row.get("Retention time", 0.0)) * 60 if "Retention time" in df.columns else None,
             adduct=str(row.get("Charge", "")),
-            polarity=None,
-            metadata={}
+            polarity=None
         ))
     return features
 
@@ -191,20 +179,14 @@ def parse_diann(df: pd.DataFrame) -> List[Feature]:
     """
     features = []
     for i, row in df.iterrows():
-        try:
-            intensity_val = float(row.get("Precursor.Quantity", 0.0))
-        except (ValueError, TypeError):
-            intensity_val = 0.0
-
         features.append(Feature(
             feature_id=str(row.get("Precursor.Id", f"DIA_{i}")),
             peptide_sequence=str(row.get("Stripped.Sequence", "")),
-            intensity=intensity_val,
+            intensity=float(row.get("Precursor.Quantity", 0.0)),
             mz=float(row.get("Precursor.Mz", 0.0)),
             rt_sec=float(row.get("RT", 0.0)) * 60,
             adduct=str(row.get("Precursor.Charge", "")),
-            polarity=None,
-            metadata={}
+            polarity=None
         ))
     return features
 
@@ -214,20 +196,14 @@ def parse_spectronaut(df: pd.DataFrame) -> List[Feature]:
     """
     features = []
     for i, row in df.iterrows():
-        try:
-            intensity_val = float(row.get("PEP.Quantity", 0.0))
-        except (ValueError, TypeError):
-            intensity_val = 0.0
-
         features.append(Feature(
             feature_id=f"SPEC_{i}", # Spectronaut exports might vary, using index for now
             peptide_sequence=str(row.get("PEP.StrippedSequence", "")),
-            intensity=intensity_val,
+            intensity=float(row.get("PEP.Quantity", 0.0)),
             mz=0.0,
             rt_sec=float(row.get("PEP.RT", 0.0)) * 60,
             adduct=None,
-            polarity=None,
-            metadata={}
+            polarity=None
         ))
     return features
 

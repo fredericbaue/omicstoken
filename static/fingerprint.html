@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic Fingerprint</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+            align-items: start;
+        }
+        .chart-container {
+            position: relative;
+            height: 60vh;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Semantic Fingerprint</h1>
+            <h2 id="runIdHeader" class="text-muted" style="margin-top: -0.5rem;"></h2>
+        </div>
+
+        <p id="loading" class="text-center text-muted" style="padding: 2rem;">Loading fingerprint...</p>
+
+        <div id="fingerprintContent" class="hidden">
+            <div class="grid-2">
+                <div>
+                    <h3>Cluster Analysis</h3>
+                    <p class="text-sm text-muted" id="totalPeptides"></p>
+                    <table id="clusterTable" class="table" style="margin-top: 1rem;">
+                        <thead>
+                            <tr>
+                                <th>Cluster ID</th>
+                                <th>Size</th>
+                                <th>Avg. Length</th>
+                                <th>Avg. Hydrophobicity</th>
+                                <th>Avg. Intensity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div style="min-width: 0;">
+                    <h3>Embedding 2D Projection (PCA)</h3>
+                    <div class="chart-container">
+                        <canvas id="fingerprintChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chart.js color scheme for clusters
+        const CLUSTER_COLORS = [
+            'rgba(54, 162, 235, 0.7)',
+            'rgba(255, 99, 132, 0.7)',
+            'rgba(75, 192, 192, 0.7)',
+            'rgba(255, 206, 86, 0.7)',
+            'rgba(153, 102, 255, 0.7)',
+            'rgba(255, 159, 64, 0.7)'
+        ];
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('token');
+            const urlParams = new URLSearchParams(window.location.search);
+            const runId = urlParams.get('run_id');
+
+            const loadingEl = document.getElementById('loading');
+            const contentEl = document.getElementById('fingerprintContent');
+            const runIdHeader = document.getElementById('runIdHeader');
+
+            if (!runId) {
+                loadingEl.innerHTML = '<span style="color: red;">Error: No run_id specified in URL.</span>';
+                return;
+            }
+            
+            runIdHeader.textContent = `Run ID: ${runId}`;
+
+            if (!token) {
+                loadingEl.innerHTML = 'You are not logged in. <a href="/static/login.html">Please log in</a>.';
+                return;
+            }
+
+            try {
+                const headers = { 'Authorization': 'Bearer ' + token };
+                const response = await fetch(`/runs/${runId}/fingerprint`, { headers });
+
+                if (response.status === 401) {
+                    loadingEl.innerHTML = 'Your session has expired. <a href="/static/login.html">Please log in again</a>.';
+                    return;
+                }
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `Failed to load fingerprint (status: ${response.status})`);
+                }
+
+                const data = await response.json();
+                
+                loadingEl.classList.add('hidden');
+                contentEl.classList.remove('hidden');
+
+                // Populate total peptides count
+                document.getElementById('totalPeptides').textContent = `${data.total_peptides} total peptides in run.`;
+
+                // Populate cluster table
+                const tableBody = document.getElementById('clusterTable').querySelector('tbody');
+                data.clusters.forEach(cluster => {
+                    const row = tableBody.insertRow();
+                    row.innerHTML = `
+                        <td><span class="color-dot" style="background-color: ${CLUSTER_COLORS[cluster.id % CLUSTER_COLORS.length]}"></span>${cluster.id}</td>
+                        <td>${cluster.size}</td>
+                        <td>${cluster.mean_length}</td>
+                        <td>${cluster.mean_hydrophobicity}</td>
+                        <td>${cluster.mean_intensity.toExponential(2)}</td>
+                    `;
+                });
+
+                // Create scatter plot
+                const ctx = document.getElementById('fingerprintChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: data.clusters.map(cluster => ({
+                            label: `Cluster ${cluster.id}`,
+                            data: data.embedding_2d.filter(p => p.cluster_id === cluster.id).map(p => ({ x: p.x, y: p.y })),
+                            backgroundColor: CLUSTER_COLORS[cluster.id % CLUSTER_COLORS.length],
+                        }))
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'PCA Component 1' }
+                            },
+                            y: {
+                                title: { display: true, text: 'PCA Component 2' }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `Cluster ${context.dataset.label}: (PCA1: ${context.parsed.x.toFixed(2)}, PCA2: ${context.parsed.y.toFixed(2)})`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+            } catch (e) {
+                loadingEl.innerHTML = `<span style="color: red;">Error: ${e.message}</span>`;
+            }
+        });
+    </script>
+</body>
+</html>

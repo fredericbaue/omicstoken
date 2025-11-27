@@ -1,0 +1,24 @@
+# ========================================
+# ENVIRONMENT CONFIGURATION GUIDE
+# ========================================
+# 
+# Your .env file should contain the following:
+# 
+# GOOGLE_API_KEY=your_actual_api_key_here
+#
+# ========================================
+# INSTRUCTIONS:
+# ========================================
+# 1. Open your .env file in the project root
+# 2. Update or add the line: GOOGLE_API_KEY=your_key
+# 3. If you previously had GEMINI_API_KEY, replace it with GOOGLE_API_KEY
+# 4. Save the file
+# 5. Restart the server: uvicorn app:app --reload
+#
+# ========================================
+# TESTING:
+# ========================================
+# After updating, run: python test_gemini_api.py
+# This will verify your API key is working correctly
+#
+# ========================================

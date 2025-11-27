@@ -41,16 +41,16 @@ def test_summarization_flow():
     with patch("google.generativeai.GenerativeModel", return_value=mock_model):
         # We need to set a dummy API key in env if not present, 
         # because summarizer.py checks for it.
-        if "GOOGLE_API_KEY" not in os.environ:
-            os.environ["GOOGLE_API_KEY"] = "dummy_key"
+        if "GEMINI_API_KEY" not in os.environ:
+            os.environ["GEMINI_API_KEY"] = "dummy_key"
             
         # Force reload of summarizer module to pick up the env var if needed? 
         # Actually, summarizer.py reads env at module level. 
         # If it was already imported by app, it might have seen None.
         # Let's patch the module-level variable if needed, but patching os.environ before import is best.
-        # Since app is already imported, let's check summarizer.GOOGLE_API_KEY
+        # Since app is already imported, let's check summarizer.GEMINI_API_KEY
         import summarizer
-        summarizer.GOOGLE_API_KEY = "dummy_key" # Force it for the test
+        summarizer.GEMINI_API_KEY = "dummy_key" # Force it for the test
         
         response = client.post("/summary/run/TEST_RUN_001")
         

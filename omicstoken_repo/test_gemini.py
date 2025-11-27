@@ -9,9 +9,9 @@ import google.generativeai as genai
 load_dotenv()
 
 # Check if key exists
-api_key = os.getenv("GOOGLE_API_KEY")
+api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
-    print("❌ GOOGLE_API_KEY not found in environment!")
+    print("❌ GEMINI_API_KEY not found in environment!")
     exit(1)
 else:
     print(f"✅ API Key found: {api_key[:20]}...")
@@ -19,7 +19,7 @@ else:
 try:
     # Configure and test the API
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     
     # Simple test query
     print("\n🧪 Testing Gemini API connection...")

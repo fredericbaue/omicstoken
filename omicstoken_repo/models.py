@@ -28,7 +28,6 @@ class Feature(BaseModel):
 
 class Run(BaseModel):
     run_id: str
-    user_id: Optional[str] = None
     instrument: Optional[str] = None
     method: Optional[str] = None
     polarity: Optional[str] = None
