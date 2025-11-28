@@ -1,32 +1,40 @@
 import numpy as np
 import logging
-from bio_embeddings.embed import ProtTransT5XLU50Embedder
+import torch
+from transformers import AutoTokenizer, AutoModel
+import os
 
 # --- Configuration ---
-# ProtTrans-T5-XL-U50 outputs 1024-dimensional vectors
-EMBEDDING_DIM = 1024
+# We use ESM-2 (6 layers, 8M parameters) which is lightweight and fast.
+# Output dimension is 320.
+EMBEDDING_DIM = 320
 
-# Global cache to prevent reloading the massive model on every request
-_EMBEDDER = None
+# Global cache to prevent reloading model on every request
+_TOKENIZER = None
+_MODEL = None
 
-def get_embedder():
-    global _EMBEDDER
-    if _EMBEDDER is None:
-        print(f"🔄 Loading ProtTrans-T5 Model (this may take a moment)...")
+def get_model():
+    """Lazy loads the ESM-2 model from Hugging Face cache."""
+    global _TOKENIZER, _MODEL
+    if _MODEL is None:
+        print(f"🔄 Loading ESM-2 Model (facebook/esm2_t6_8M_UR50D)...")
         try:
-            # This loads the local model (requires ~3-5GB RAM)
-            _EMBEDDER = ProtTransT5XLU50Embedder()
-            print("✅ ProtTrans Model loaded successfully.")
+            model_name = "facebook/esm2_t6_8M_UR50D"
+            _TOKENIZER = AutoTokenizer.from_pretrained(model_name)
+            _MODEL = AutoModel.from_pretrained(model_name)
+            _MODEL.eval() # Set to evaluation mode
+            print("✅ ESM-2 Model loaded successfully.")
         except Exception as e:
-            logging.error(f"Failed to load ProtTrans model: {e}")
-            raise e
-    return _EMBEDDER
+            logging.error(f"Failed to load ESM-2 model: {e}")
+            return None, None
+    return _TOKENIZER, _MODEL
 
 def peptide_to_vector(sequence: str) -> np.ndarray:
     """
-    Embeds a peptide sequence using the LOCAL ProtTrans-T5 model.
-    Returns a 1024-dimensional vector.
+    Embeds a peptide sequence using the LOCAL ESM-2 model.
+    Returns a 320-dimensional vector.
     """
+    # 1. Validation
     if not sequence or not isinstance(sequence, str):
         return np.zeros((EMBEDDING_DIM,), dtype=np.float32)
 
@@ -35,11 +43,30 @@ def peptide_to_vector(sequence: str) -> np.ndarray:
     if not seq:
         return np.zeros((EMBEDDING_DIM,), dtype=np.float32)
 
+    # 2. Embedding Logic
     try:
-        embedder = get_embedder()
-        # ProtTrans returns per-residue embeddings; we need a single vector per peptide.
-        # standard approach: reduce_per_protein (average)
-        return embedder.embed(seq)
+        tokenizer, model = get_model()
+        if model is None:
+            # Graceful fallback: return a zero vector if the model is unavailable
+            return np.zeros((EMBEDDING_DIM,), dtype=np.float32)
+        
+        # Tokenize sequence
+        inputs = tokenizer(seq, return_tensors="pt", add_special_tokens=True)
+        
+        with torch.no_grad():
+            outputs = model(**inputs)
+            
+        embeddings = outputs.last_hidden_state.squeeze(0).numpy()
+        
+        # Mean Pooling over the residue tokens (excluding start/end tokens)
+        if embeddings.shape[0] > 2:
+             vector = np.mean(embeddings[1:-1], axis=0)
+        else:
+             vector = np.mean(embeddings, axis=0)
+        
+        return vector.astype(np.float32)
+
     except Exception as e:
-        print(f"Error embedding sequence '{seq}': {e}")
+        # If any part of the PyTorch/Transformers pipeline fails, return zero vector
+        logging.error(f"Critical embedding error for {seq}: {e}")
         return np.zeros((EMBEDDING_DIM,), dtype=np.float32)

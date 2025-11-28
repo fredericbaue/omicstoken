@@ -76,12 +76,18 @@ def _create_tables(con: sqlite3.Connection):
         charge INTEGER,
         hydrophobicity REAL,
         embedding TEXT, -- JSON list of floats
-        model_version TEXT DEFAULT 'v2_prottrans', -- Track which model generated this embedding
+        model_version TEXT DEFAULT 'v2_gemini_768', -- Track which model generated this embedding
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(run_id, feature_id), -- Ensure unique embedding per run and feature
         FOREIGN KEY(run_id) REFERENCES runs(run_id) ON DELETE CASCADE,
         FOREIGN KEY(run_id, feature_id) REFERENCES features(run_id, feature_id) ON DELETE CASCADE
     )""")
+    
+    # Migration: Add model_version column if it doesn't exist
+    try:
+        con.execute("ALTER TABLE peptide_embeddings ADD COLUMN model_version TEXT DEFAULT 'v2_gemini_768'")
+    except sqlite3.OperationalError:
+        pass  # Column likely already exists
     
     con.commit()
 
@@ -122,7 +128,7 @@ def insert_embedding(con: sqlite3.Connection, run_id: str, feature_id: str, meth
     )
 
 def insert_peptide_embedding(con: sqlite3.Connection, run_id: str, user_id: str, feature_id: str, sequence: str, intensity: float, 
-                             length: int, charge: int, hydrophobicity: float, vector: np.ndarray, model_version: str = "v2_prottrans"):
+                             length: int, charge: int, hydrophobicity: float, vector: np.ndarray, model_version: str = "v2_gemini_768"):
     """Inserts a row into the new peptide_embeddings table."""
     con.execute(
         """INSERT INTO peptide_embeddings(run_id, user_id, feature_id, sequence, intensity, length, charge, hydrophobicity, embedding, model_version)
@@ -253,17 +259,31 @@ def get_run_summaries(con: sqlite3.Connection, user_id: Optional[str] = None) ->
         })
     return results
 
-def update_user_credits(con: sqlite3.Connection, user_id: str, credits_to_add: int):
-    """Increments the credits for a given user."""
-    con.execute(
-        "UPDATE user SET credits = credits + ? WHERE id = ?",
-        (credits_to_add, user_id)
-    )
-    con.commit()
+def update_user_credits(con: sqlite3.Connection, user_id: str, amount: int):
+    """
+    Updates the credit balance for a specific user in the separate users.db.
+    Note: This function establishes its own connection to users.db.
+    """
+    try:
+        # Connect directly to the user database
+        with sqlite3.connect("data/users.db") as u_con:
+            u_con.execute("UPDATE user SET credits = credits + ? WHERE id = ?", (amount, user_id))
+            u_con.commit()
+    except Exception as e:
+        # Using logging would be better, but print is fine for now.
+        print(f"Error updating credits for user {user_id}: {e}")
 
-def get_user_credits(con: sqlite3.Connection, user_id: str) -> Optional[int]:
-    """Retrieves the credits for a given user."""
-    cur = con.cursor()
-    cur.execute("SELECT credits FROM user WHERE id = ?", (user_id,))
-    row = cur.fetchone()
-    return row[0] if row else None
+def get_user_credits(con: sqlite3.Connection, user_id: str) -> int:
+    """
+    Fetches the current credit balance for a user from the separate users.db.
+    Note: This function establishes its own connection to users.db.
+    """
+    try:
+        with sqlite3.connect("data/users.db") as u_con:
+            cur = u_con.cursor()
+            cur.execute("SELECT credits FROM user WHERE id = ?", (user_id,))
+            row = cur.fetchone()
+            return row[0] if row else 0
+    except Exception as e:
+        print(f"Error fetching credits for user {user_id}: {e}")
+        return 0

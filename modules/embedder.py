@@ -1,10 +1,13 @@
 import torch
-from bio_embeddings.embed import ProtTransT5XLU50Embedder
+import re
 import numpy as np
+from transformers import T5Tokenizer, T5EncoderModel
 
 class ProtTransEmbedder:
     _instance = None
     _model = None
+    _tokenizer = None
+    _device = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -13,30 +16,68 @@ class ProtTransEmbedder:
 
     def __init__(self):
         if self._model is None:
-            print("Loading ProtTransT5XLU50Embedder model...")
-            # Check for GPU
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            print(f"Using device: {device}")
-            # Instantiate the embedder
-            self._model = ProtTransT5XLU50Embedder(device=device)
-            print("Model loaded.")
+            print("Loading ProtTrans T5 Model (via transformers)...")
+            
+            # Detect device
+            self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            print(f"Using device: {self._device}")
+
+            # Load model and tokenizer directly from Hugging Face
+            # This uses the same model bio-embeddings uses under the hood
+            model_name = "Rostlab/prot_t5_xl_uniref50"
+            
+            self._tokenizer = T5Tokenizer.from_pretrained(model_name, do_lower_case=False)
+            self._model = T5EncoderModel.from_pretrained(model_name).to(self._device)
+            
+            # Set to eval mode to save memory
+            self._model.eval()
+            
+            # Garbage collect to free memory
+            if self._device.type == 'cuda':
+                torch.cuda.empty_cache()
+                
+            print("Model loaded successfully.")
 
     def embed(self, sequence: str) -> np.ndarray:
         """
-        Embeds a single peptide sequence using the ProtTransT5XLU50 model.
-        Returns a 1024-dimensional vector.
+        Embeds a single peptide sequence.
+        Returns a 1024-dimensional vector (averaged over the sequence).
         """
         if not sequence:
             return np.zeros(1024, dtype=np.float32)
 
+        # Clean sequence (replace rare AAs with X, add spaces for T5 tokenizer)
+        clean_seq = " ".join(list(re.sub(r"[UZOB]", "X", sequence)))
+
         try:
-            # The embedder expects a list of sequences
-            embedding = self._model.embed(sequence)
-            # Reduce dimensions (e.g., by averaging) to get a fixed-size vector
-            reduced_embedding = self._model.reduce_per_protein(embedding)
-            return reduced_embedding.flatten().astype(np.float32)
+            # Tokenize
+            ids = self._tokenizer.batch_encode_plus(
+                [clean_seq], 
+                add_special_tokens=True, 
+                padding="longest", 
+                return_tensors='pt'
+            ).to(self._device)
+
+            # Generate embeddings (no gradient needed)
+            with torch.no_grad():
+                embedding_repr = self._model(ids.input_ids, attention_mask=ids.attention_mask)
+
+            # Extract the last hidden state
+            # shape: (1, seq_len, 1024)
+            emb = embedding_repr.last_hidden_state.detach().cpu().numpy()
+
+            # Remove special tokens (start/end) before averaging? 
+            # Bio-embeddings usually averages the whole thing. 
+            # For simplicity and robustness, we average the valid tokens.
+            
+            # Simply take the mean across the sequence length dimension (dim 1)
+            # This creates a single vector per protein
+            reduced_embedding = np.mean(emb[0], axis=0)
+
+            return reduced_embedding.astype(np.float32)
+
         except Exception as e:
-            print(f"Error embedding sequence with ProtTransT5: {e}")
+            print(f"Error embedding sequence with ProtTrans: {e}")
             return np.zeros(1024, dtype=np.float32)
 
 # Global instance for easy access
@@ -47,4 +88,3 @@ def get_embedder():
     if _embedder_instance is None:
         _embedder_instance = ProtTransEmbedder()
     return _embedder_instance
-

@@ -13,6 +13,7 @@ import os
 import shutil
 import pandas as pd
 import numpy as np
+import asyncio
 import random
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
@@ -135,7 +136,13 @@ async def upload_handler(request: Request, background_tasks: BackgroundTasks,
     """
     # --- Ingest Logic ---
     name = file.filename or "upload.csv"
-    sep = "\t" if name.endswith(".tsv") or name.endswith(".txt") else ","
+    
+    # 🚨 FIX: Check for common tab-separated extensions (.txt or .tsv)
+    if name.endswith(".tsv") or name.endswith(".txt"):
+        sep = "\t"
+    else:
+        sep = "," # Default to comma for .csv
+        
     await file.seek(0)
     
     try:
@@ -399,6 +406,8 @@ def delete_run(run_id: str, background_tasks: BackgroundTasks, user: User = Depe
     finally:
         con.close()
 
+# In app.py
+
 @app.get("/runs/{run_id}/fingerprint")
 def get_run_fingerprint(run_id: str, user: User = Depends(current_active_user)):
     """
@@ -420,12 +429,18 @@ def get_run_fingerprint(run_id: str, user: User = Depends(current_active_user)):
         # 2. Fetch peptide embeddings for the run
         peptides = db.get_peptide_embeddings(con, run_id)
         if not peptides:
-            logging.warning(f"No peptide embeddings found for run {run_id}.")
             raise HTTPException(404, "No peptide embeddings found for this run.")
 
         total_peptides = len(peptides)
         
-        # 3. Sample if necessary
+        # 🚨 THE FIX: Minimum sample size check to prevent scikit-learn crash
+        if total_peptides < 4:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Fingerprint requires at least 4 peptides (found {total_peptides}). Please upload more data."
+            )
+        
+        # 3. Sample if necessary (rest of logic remains the same)
         sample_size = 1000
         if total_peptides > 2000:
             peptides_to_cluster = random.sample(peptides, sample_size)
@@ -443,6 +458,7 @@ def get_run_fingerprint(run_id: str, user: User = Depends(current_active_user)):
         # 5. Compute cluster statistics
         clusters_summary = []
         for i in range(n_clusters):
+            # [Logic for calculating cluster means and stats...]
             cluster_indices = np.where(cluster_labels == i)[0]
             if not cluster_indices.any():
                 continue
@@ -527,19 +543,12 @@ def compare_runs(
         raw_2 = [row[0] for row in cur.fetchall()]
 
         # Normalize everything to JSON-safe strings and drop None/bytes
-        def normalize_list(raw_list):
-            out = []
-            for s in raw_list:
-                if s is None:
-                    continue
-                if isinstance(s, bytes):
-                    try:
-                        out.append(s.decode("utf-8", errors="ignore"))
-                    except Exception:
-                        continue
-                else:
-                    out.append(str(s))
-            return out
+        def normalize_list(raw_list: List[Optional[str]]) -> List[str]:
+            """Filters out None values and ensures all items are strings."""
+            return [
+                str(s) for s in raw_list
+                if s is not None
+            ]
 
         list_1 = normalize_list(raw_1)
         list_2 = normalize_list(raw_2)

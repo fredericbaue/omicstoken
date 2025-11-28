@@ -2,7 +2,7 @@ import os
 import uuid
 from typing import Optional
 from fastapi import Depends, Request
-from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, schemas
+from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, schemas, models
 from fastapi_users.authentication import (
     AuthenticationBackend,
     BearerTransport,
@@ -12,12 +12,12 @@ from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
+from sqlalchemy import Column, Integer
+from passlib.context import CryptContext
 
 # --- Configuration ---
 SECRET = "SECRET_KEY_FOR_MVP_ONLY_CHANGE_IN_PROD"
 DATABASE_URL = "sqlite+aiosqlite:///./data/users.db"
-
-from sqlalchemy import Column, Integer
 
 # --- Database Setup ---
 Base: DeclarativeMeta = declarative_base()
@@ -35,16 +35,36 @@ async def get_async_session():
 async def get_user_db(session: AsyncSession = Depends(get_async_session)):
     yield SQLAlchemyUserDatabase(session, User)
 
+# --- Password Helper (The Fix) ---
+# Explicitly use bcrypt to avoid Argon2/C++ dependency issues
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 # --- User Manager ---
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     reset_password_token_secret = SECRET
     verification_token_secret = SECRET
 
+    async def create(
+        self, user_create: schemas.UC, safe: bool = False, request: Optional[Request] = None
+    ) -> models.UP:
+        # This override handles the custom 'credits' field.
+        # It separates standard user creation data from our custom field.
+        user_dict = user_create.dict()
+        credits = user_dict.pop("credits", 0)
+        
+        # Use the parent class to create the user with standard fields.
+        created_user = await super().create(user_create, safe, request)
+        
+        created_user.credits = credits
+        return created_user
+
     async def on_after_register(self, user: User, request: Optional[Request] = None):
         print(f"User {user.id} has registered.")
 
 async def get_user_manager(user_db=Depends(get_user_db)):
-    yield UserManager(user_db)
+    user_manager = UserManager(user_db)
+    user_manager.password_helper = pwd_context
+    yield user_manager
 
 # --- Schemas ---
 class UserRead(schemas.BaseUser[uuid.UUID]):

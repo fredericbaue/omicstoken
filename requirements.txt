@@ -9,7 +9,10 @@ google-generativeai>=0.3.0
 httpx
 python-dotenv
 fastapi-users[sqlalchemy]
+passlib[bcrypt]
 aiosqlite
-bio-embeddings[prottrans_t5_xl_u50]
-torch
+requests
+transformers
 sentencepiece
+torch
+greenlet
