@@ -16,3 +16,4 @@ transformers
 sentencepiece
 torch
 greenlet
+argon2-cffi
