@@ -10,7 +10,8 @@
     <div class="container">
         <div class="header flex-between">
             <h1>My Runs</h1>
-            <div>
+            <div class="flex" style="gap: 1rem; align-items: center;">
+                <span id="credits-display" class="badge badge-credits">💎 0 Credits</span>
                 <a href="/static/upload.html" class="btn btn-primary">Upload New Data</a>
                 <a href="/static/compare.html" class="btn btn-secondary">Compare Runs</a>
             </div>
@@ -45,7 +46,11 @@
                     throw new Error(`Failed to load runs (status: ${response.status})`);
                 }
 
-                const runs = await response.json();
+                const data = await response.json();
+                const runs = data.runs;
+                const userCredits = data.user_credits;
+
+                document.getElementById('credits-display').textContent = `💎 ${userCredits} Credits`;
 
                 if (runs.length === 0) {
                     loadingEl.textContent = 'No runs found. Try uploading some data!';

@@ -252,3 +252,18 @@ def get_run_summaries(con: sqlite3.Connection, user_id: Optional[str] = None) ->
             "n_embeddings": row[6]
         })
     return results
+
+def update_user_credits(con: sqlite3.Connection, user_id: str, credits_to_add: int):
+    """Increments the credits for a given user."""
+    con.execute(
+        "UPDATE user SET credits = credits + ? WHERE id = ?",
+        (credits_to_add, user_id)
+    )
+    con.commit()
+
+def get_user_credits(con: sqlite3.Connection, user_id: str) -> Optional[int]:
+    """Retrieves the credits for a given user."""
+    cur = con.cursor()
+    cur.execute("SELECT credits FROM user WHERE id = ?", (user_id,))
+    row = cur.fetchone()
+    return row[0] if row else None

@@ -17,11 +17,13 @@ from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
 SECRET = "SECRET_KEY_FOR_MVP_ONLY_CHANGE_IN_PROD"
 DATABASE_URL = "sqlite+aiosqlite:///./data/users.db"
 
+from sqlalchemy import Column, Integer
+
 # --- Database Setup ---
 Base: DeclarativeMeta = declarative_base()
 
 class User(SQLAlchemyBaseUserTableUUID, Base):
-    pass
+    credits = Column(Integer, default=0)
 
 engine = create_async_engine(DATABASE_URL)
 async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -46,10 +48,10 @@ async def get_user_manager(user_db=Depends(get_user_db)):
 
 # --- Schemas ---
 class UserRead(schemas.BaseUser[uuid.UUID]):
-    pass
+    credits: int = 0
 
 class UserCreate(schemas.BaseUserCreate):
-    pass
+    credits: int = 0
 
 class UserUpdate(schemas.BaseUserUpdate):
     pass

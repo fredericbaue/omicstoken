@@ -166,6 +166,8 @@ async def upload_handler(request: Request, background_tasks: BackgroundTasks,
         db.insert_feature(con, run_id_final, feat)
         
     con.commit()
+    db.update_user_credits(con, str(user.id), 10) # Increment credits
+    print(f"User {user.email} mined 10 credits") # Log message
     con.close()
     rows_ingested = len(features)
 
@@ -314,7 +316,13 @@ def list_runs(user: User = Depends(current_active_user)):
     """List all runs for the current user."""
     con = db.get_db_connection(DATA_DIR)
     try:
-        return db.get_run_summaries(con, user_id=str(user.id))
+        run_summaries = db.get_run_summaries(con, user_id=str(user.id))
+        user_credits = db.get_user_credits(con, str(user.id))
+        
+        return {
+            "user_credits": user_credits if user_credits is not None else 0,
+            "runs": run_summaries
+        }
     finally:
         con.close()
 
