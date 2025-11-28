@@ -43,7 +43,7 @@ data/metabo.sqlite
 # 🔒 Private-Logic: Ignore files containing proprietary tokenization
 # and embedding algorithms as per our architectural plan.
 modules/tokenizer.py
-modules/embedder.py
+# modules/embedder.py
 
 # 🧬 Private-Model: Ignore any saved/trained model files.
 # The `load_pca` function references this path.

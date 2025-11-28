@@ -10,3 +10,6 @@ httpx
 python-dotenv
 fastapi-users[sqlalchemy]
 aiosqlite
+bio-embeddings[prottrans_t5_xl_u50]
+torch
+sentencepiece

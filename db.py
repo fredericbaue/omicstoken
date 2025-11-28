@@ -76,11 +76,13 @@ def _create_tables(con: sqlite3.Connection):
         charge INTEGER,
         hydrophobicity REAL,
         embedding TEXT, -- JSON list of floats
+        model_version TEXT DEFAULT 'v2_prottrans', -- Track which model generated this embedding
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(run_id, feature_id), -- Ensure unique embedding per run and feature
         FOREIGN KEY(run_id) REFERENCES runs(run_id) ON DELETE CASCADE,
         FOREIGN KEY(run_id, feature_id) REFERENCES features(run_id, feature_id) ON DELETE CASCADE
     )""")
+    
     con.commit()
 
 # --- Helper functions for DB operations ---
@@ -120,12 +122,12 @@ def insert_embedding(con: sqlite3.Connection, run_id: str, feature_id: str, meth
     )
 
 def insert_peptide_embedding(con: sqlite3.Connection, run_id: str, user_id: str, feature_id: str, sequence: str, intensity: float, 
-                             length: int, charge: int, hydrophobicity: float, vector: np.ndarray):
+                             length: int, charge: int, hydrophobicity: float, vector: np.ndarray, model_version: str = "v2_prottrans"):
     """Inserts a row into the new peptide_embeddings table."""
     con.execute(
-        """INSERT INTO peptide_embeddings(run_id, user_id, feature_id, sequence, intensity, length, charge, hydrophobicity, embedding)
-           VALUES(?,?,?,?,?,?,?,?,?)""",
-        (run_id, user_id, feature_id, sequence, intensity, length, charge, hydrophobicity, json.dumps(vector.tolist()))
+        """INSERT INTO peptide_embeddings(run_id, user_id, feature_id, sequence, intensity, length, charge, hydrophobicity, embedding, model_version)
+           VALUES(?,?,?,?,?,?,?,?,?,?)""",
+        (run_id, user_id, feature_id, sequence, intensity, length, charge, hydrophobicity, json.dumps(vector.tolist()), model_version)
     )
 
 def get_run(con: sqlite3.Connection, run_id: str) -> Optional[models.Run]:
