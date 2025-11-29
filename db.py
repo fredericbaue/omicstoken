@@ -204,7 +204,7 @@ def get_peptide_embeddings(con: sqlite3.Connection, run_id: str) -> List[Dict[st
     """Retrieves all peptide embeddings for a specific run."""
     cur = con.cursor()
     cur.execute("""
-        SELECT sequence, intensity, length, charge, hydrophobicity, embedding 
+        SELECT feature_id, sequence, intensity, length, charge, hydrophobicity, embedding 
         FROM peptide_embeddings 
         WHERE run_id=?
     """, (run_id,))
@@ -212,12 +212,13 @@ def get_peptide_embeddings(con: sqlite3.Connection, run_id: str) -> List[Dict[st
     results = []
     for row in cur.fetchall():
         results.append({
-            "sequence": row[0],
-            "intensity": row[1],
-            "length": row[2],
-            "charge": row[3],
-            "hydrophobicity": row[4],
-            "embedding": json.loads(row[5]) if row[5] else []
+            "feature_id": row[0],
+            "sequence": row[1],
+            "intensity": row[2],
+            "length": row[3],
+            "charge": row[4],
+            "hydrophobicity": row[5],
+            "embedding": json.loads(row[6]) if row[6] else []
         })
     return results
 

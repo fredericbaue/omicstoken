@@ -323,7 +323,12 @@
                     throw new Error(`API Error: ${res.status}`);
                 }
 
-                runs = await res.json();
+                const responseData = await res.json();
+                runs = responseData.runs; // Correctly access the 'runs' array
+                if (!runs) {
+                    throw new Error("Invalid response format from /runs endpoint");
+                }
+
                 populateSelects();
             } catch (e) {
                 showError(`Error loading runs: ${e.message}`);

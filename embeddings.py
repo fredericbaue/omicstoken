@@ -5,8 +5,7 @@ from transformers import AutoTokenizer, AutoModel
 import os
 
 # --- Configuration ---
-# We use ESM-2 (6 layers, 8M parameters) which is lightweight and fast.
-# Output dimension is 320.
+# ESM-2 (6 layers, 8M parameters) output dimension is 320.
 EMBEDDING_DIM = 320
 
 # Global cache to prevent reloading model on every request
@@ -34,7 +33,7 @@ def peptide_to_vector(sequence: str) -> np.ndarray:
     Embeds a peptide sequence using the LOCAL ESM-2 model.
     Returns a 320-dimensional vector.
     """
-    # 1. Validation
+    # Validation
     if not sequence or not isinstance(sequence, str):
         return np.zeros((EMBEDDING_DIM,), dtype=np.float32)
 
@@ -43,14 +42,13 @@ def peptide_to_vector(sequence: str) -> np.ndarray:
     if not seq:
         return np.zeros((EMBEDDING_DIM,), dtype=np.float32)
 
-    # 2. Embedding Logic
+    # Embedding Logic
     try:
         tokenizer, model = get_model()
         if model is None:
-            # Graceful fallback: return a zero vector if the model is unavailable
+            # Graceful fallback: return zero vector if model is unavailable
             return np.zeros((EMBEDDING_DIM,), dtype=np.float32)
         
-        # Tokenize sequence
         inputs = tokenizer(seq, return_tensors="pt", add_special_tokens=True)
         
         with torch.no_grad():

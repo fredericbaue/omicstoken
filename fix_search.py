@@ -67,8 +67,9 @@ new_content = '''<!DOCTYPE html>
                 const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
                 const response = await fetch('/runs', { headers });
                 if (!response.ok) throw new Error('Failed to load runs');
-                const runs = await response.json();
-                if (runs.length === 0) {
+                const responseData = await response.json();
+                const runs = responseData.runs; // Correctly access the 'runs' array
+                if (!runs || runs.length === 0) {
                     runSelect.innerHTML = '<option value="">No runs available</option>';
                     return;
                 }

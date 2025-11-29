@@ -28,7 +28,9 @@ import search
 import models
 import importers
 import summarizer
+import export
 import auth
+import export
 from auth import current_active_user, User
 
 # --- Configuration ---
@@ -597,25 +599,58 @@ def compare_runs(
 
 
 
-@app.get("/export/embeddings/{run_id}")
-def export_embeddings(run_id: str, user: User = Depends(current_active_user)):
+@app.get("/export/embeddings/{run_id}", response_model=models.OmicsTokenExportV1)
+def export_embeddings_v1(run_id: str, user: User = Depends(current_active_user)):
     """
-    Export peptide embeddings for a specific run as JSON.
-    Returns a list of peptide embeddings with sequence, intensity, properties, and embedding vectors.
+    Export peptide embeddings for a specific run in the canonical OmicsToken v1 format.
+
+    Returns:
+        OmicsTokenExportV1:
+            {
+              "run_id": "...",
+              "export_version": "omics_export_v1",
+              "total_embeddings": N,
+              "data": [ OmicsTokenV1, ... ]
+            }
     """
     con = db.get_db_connection(DATA_DIR)
     try:
+        # 1. Verify run ownership
         run = db.get_run(con, run_id)
         if run is None or str(run.user_id) != str(user.id):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Run not found",
             )
-            
-        embeddings = db.get_peptide_embeddings(con, run_id)
-        return embeddings
+
+        # 2. Fetch raw embeddings for this run
+        raw_embeddings = db.get_peptide_embeddings(con, run_id)
+        if not raw_embeddings:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No peptide embeddings found for run '{run_id}'.",
+            )
+
+        # 3. Normalize into OmicsToken v1 records
+        canonical_records = export.normalize_to_omics_token_v1(run_id, raw_embeddings)
+
+        if not canonical_records:
+            # This means every record failed validation; treat as server error
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to normalize peptide embeddings for this run.",
+            )
+
+        # 4. Return standardised response
+        return models.OmicsTokenExportV1(
+            run_id=run_id,
+            total_embeddings=len(canonical_records),
+            data=canonical_records,
+        )
     finally:
         con.close()
+
+
 
 # --- Biophysics Logic ---
 from collections import Counter

@@ -52,3 +52,37 @@ class SimilarPeptide(BaseModel):
 class SimilarPeptidesResponse(BaseModel):
     query: QueryPeptide
     neighbors: List[SimilarPeptide]
+
+# -------------------- OmicsToken Export v1 Schema --------------------
+from pydantic import BaseModel
+from typing import List, Optional
+
+
+class OmicsTokenProperties(BaseModel):
+    """Biophysical properties for a single peptide."""
+    length: int
+    charge: Optional[int] = None
+    hydrophobicity: Optional[float] = None
+    molecular_weight: Optional[float] = None
+
+
+class OmicsTokenV1(BaseModel):
+    """
+    Canonical representation of a single peptide embedding record
+    in the OmicsToken v1 export format.
+    """
+    feature_id: str
+    sequence: str                      # required
+    intensity: Optional[float] = None
+    properties: OmicsTokenProperties
+    embedding: List[float]             # JSON-serializable list of floats
+
+
+class OmicsTokenExportV1(BaseModel):
+    """
+    Top-level response for the OmicsToken v1 export endpoint.
+    """
+    run_id: str
+    export_version: str = "omics_export_v1"
+    total_embeddings: int
+    data: List[OmicsTokenV1]
