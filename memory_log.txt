@@ -1,0 +1,108 @@
+# OmicsToken – Codex Memory Log (Append-Only)
+
+---------------------------------------------------------
+## 2025-12-01 – ESM-2 Embeddings Integrated
+- Embedding engine now uses ESM-2 (facebook/esm2_t6_8M_UR50D) with 320-dim output.
+- Implemented in embeddings.py with lazy-loaded tokenizer/model and mean pooling
+  over residue tokens.
+- Returns a zero vector if the model fails to load or an embedding cannot be
+  generated.
+- EMBEDDING_DIM constant set to 320 and imported throughout the app to validate
+  embedding shapes.
+
+---------------------------------------------------------
+## 2025-11-30 – Fingerprint Endpoint Added
+- New route: GET /runs/{run_id}/fingerprint.
+- Fetches peptide embeddings for a run and requires at least 4 peptides to avoid
+  scikit-learn crashes.
+- Uses KMeans (n_clusters=4) and PCA (2 components) to generate:
+  - cluster summaries (size, mean length, hydrophobicity, intensity)
+  - 2D embedding coordinates with cluster labels.
+- Returns JSON for downstream visualization in the dashboard.
+
+---------------------------------------------------------
+## 2025-11-30 – Run Comparison Endpoint Added
+- New route: GET /compare/{run_id_1}/{run_id_2}.
+- Uses DISTINCT annotation_name from features as peptide sequences.
+- Normalizes lists to JSON-safe strings and filters None values.
+- Computes:
+  - total unique peptides per run
+  - shared peptides
+  - unique peptides per run
+  - Jaccard index across the union.
+- Returns top 100 items per list for readability.
+
+---------------------------------------------------------
+## 2025-11-28 – OmicsToken Export v1 Completed
+- New route: GET /export/embeddings/{run_id} with response_model=OmicsTokenExportV1.
+- Reads raw embeddings from peptide_embeddings via db.get_peptide_embeddings.
+- Normalizes records into OmicsTokenV1 objects and wraps them in an export
+  payload: run_id, total_embeddings, data[].
+- CLI script export_run.py added:
+  - Reads API_TOKEN from env or --token argument.
+  - Calls /export/embeddings/{run_id} with Bearer token.
+  - Writes JSON file named {run_id}_omics_export_v1.json into an output directory.
+
+---------------------------------------------------------
+## 2025-11-27 – Global Index Rebuild Implemented
+- After embedding peptides, the system calls search.rebuild_faiss_index with the
+  DB connection and data directory.
+- FAISS index is built globally from all rows in peptide_embeddings.
+- Ensures cross-run nearest neighbor search is coherent.
+
+---------------------------------------------------------
+## 2025-11-26 – Background Task Embedding
+- Upload handler (/upload) parses CSV/TSV with format auto-detection and uses
+  importers.parse_upload to generate Feature objects.
+- Stores run metadata and features in SQLite.
+- Uses FastAPI BackgroundTasks + run_in_threadpool to call embed(run_id) without
+  blocking the event loop.
+- embed(run_id) reads all features, generates embeddings with peptide_to_vector,
+  stores rows in peptide_embeddings, and triggers FAISS index rebuild.
+- Each successful upload increments the user’s credits in users.db.
+
+---------------------------------------------------------
+## 2025-11-24 – Peptide Explanation Added
+- New route: GET /peptide/explain/{run_id}/{feature_id}.
+- Verifies run ownership via current_active_user.
+- Fetches peptide sequence and intensity from features.
+- Computes basic biophysical properties (length, hydrophobicity, charge).
+- Retrieves similar peptides via search.search_similar_peptides (k=10).
+- Calls Gemini (GOOGLE_API_KEY) to generate a two-paragraph explanation that
+  references sequence, properties, and neighbors.
+- Returns structured JSON with peptide metadata, neighbors, and explanation text.
+
+---------------------------------------------------------
+## 2025-11-20 – Real Dataset Validated
+- First real immuno-peptidomics tumor dataset successfully ingested and processed.
+- Verified:
+  - /upload → features in DB
+  - /peptide/embed/{run_id} → embeddings generated and stored
+  - search similarity pipeline
+  - basic summaries and dashboards.
+
+---------------------------------------------------------
+## 2025-11-18 – Architecture Committed
+- FastAPI selected as main web framework.
+- SQLite selected for MVP storage (immuno.sqlite + users.db).
+- Modularization agreed:
+  - db.py for DB access and schema creation/migrations.
+  - embeddings.py for embedding logic.
+  - auth.py for auth and user management with fastapi-users.
+  - app.py as the main router for upload, embedding, search, comparison, summary,
+    fingerprint, export, and dashboard data.
+
+---------------------------------------------------------
+## 2025-11-15 – Vision Crystallized
+- Reframed project as an embedding/tokenization engine for omics, not just a
+  one-off analysis pipeline.
+- Immuno-peptidomics selected as the beachhead due to high value and lack of
+  existing embedding standards.
+- Confirmed long-term plan:
+  - Lab SaaS → multi-omics embedding platform → tokenized dataset marketplace.
+
+---------------------------------------------------------
+## 2025-11-10 – Project Inception
+- Core idea: convert scientific data (starting with peptides) into vectors so
+  that semantic search, comparison, and AI interpretation become first-class
+  workflows for labs and biotech.

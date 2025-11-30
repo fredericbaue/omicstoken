@@ -1,0 +1,72 @@
+PROJECT NAME:
+OmicsToken – Immuno-Peptidomics MVP
+
+CORE PURPOSE:
+Convert raw immuno-peptidomics data into vector embeddings using the ESM-2 model
+and enable semantic peptide search, run comparison, fingerprinting, and AI-assisted
+scientific summaries.
+
+UNBREAKABLE PIPELINE (DO NOT BREAK):
+Upload → Parse → Store Features → Embed → Store Embeddings → Rebuild Index →
+Search → Compare → Summarize → Export.
+
+CURRENT EMBEDDING ENGINE:
+- Default embedder uses ESM-2 (facebook/esm2_t6_8M_UR50D) generating 320-dimensional
+  vectors via mean pooling over residue tokens.
+- Implemented in embeddings.py as peptide_to_vector with lazy-loaded model and
+  zero-vector fallback.
+
+INDEX LAYER:
+- FAISS index is global across all runs and is rebuilt after embeddings are
+  inserted (search.rebuild_faiss_index).
+- Index is backed by the peptide_embeddings table, not the legacy embeddings table.
+
+MVP DEMO REQUIREMENTS:
+A scientist must be able to, end-to-end:
+
+1. Upload a real peptide table (CSV/TSV) via /upload.
+2. Have features parsed and stored in SQLite (runs + features tables).
+3. Have embeddings generated via ESM-2 in a background threadpool task.
+4. Have the global FAISS index rebuilt from peptide_embeddings.
+5. See run details via /runs and /runs/{run_id}.
+6. Perform similar peptide search via /peptide/search/{run_id}/{feature_id}.
+7. Compare two runs via /compare/{run_id_1}/{run_id_2} (Jaccard-based).
+8. Generate a run summary via /summary/run/{run_id}.
+9. Generate a peptide explanation via /peptide/explain/{run_id}/{feature_id}.
+10. Export embeddings in canonical OmicsToken v1 format via
+    /export/embeddings/{run_id} and export_run.py.
+
+DESIGN PRINCIPLES:
+- Embedders MUST be swappable behind a simple interface.
+- Index layer MUST remain pluggable, with FAISS as current implementation.
+- Storage layer MUST evolve safely using SCHEMA_VERSION in db.py.
+- System MUST prioritize demo stability over complex abstractions.
+- Code MUST remain modular and readable:
+  - parsers/ → ingestion
+  - embedders/ → vectorization
+  - index/ → FAISS logic
+  - storage/ (db.py) → DB access
+  - summaries/ → LLM calls
+  - app.py → FastAPI routes
+- Preserve canonical OmicsToken export v1 format.
+
+AUTH & USERS:
+- Auth is handled via fastapi-users with JWT Bearer tokens.
+- Users are stored in a separate SQLite DB (data/users.db) with a credits field.
+- Most routes depend on current_active_user and enforce per-user run ownership.
+
+BUSINESS CONTEXT:
+Short-term:
+- Provide a faster, simpler, insight-driven proteomics workflow for lab scientists.
+
+Medium-term:
+- Become a general-purpose tokenization and embedding engine for all omics
+  (proteomics first, then other data types).
+
+Long-term:
+- Enable a privacy-preserving marketplace for tokenized scientific datasets (vectors),
+  where labs can share or license embeddings without exposing raw data.
+
+PRIMARY CODING RULE:
+Any change must preserve the full demo pipeline and not regress embedding,
+indexing, search, comparison, summarization, or export behavior.
