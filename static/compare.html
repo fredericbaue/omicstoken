@@ -303,6 +303,10 @@
             window.location.href = '/static/login.html';
         }
 
+        const params = new URLSearchParams(window.location.search);
+        const preselectRun1 = params.get('run1');
+        const preselectRun2 = params.get('run2');
+
         let runs = [];
         let currentRun1Id = null;
         let currentRun2Id = null;
@@ -353,14 +357,28 @@
             run1Select.innerHTML = options;
             run2Select.innerHTML = options;
 
-            // Pre-select different runs
-            if (runs.length >= 2) {
+            // Preselect via query params if present
+            if (preselectRun1) {
+                const idx1 = runs.findIndex(r => r.run_id === preselectRun1);
+                if (idx1 >= 0) run1Select.selectedIndex = idx1;
+            }
+            if (preselectRun2) {
+                const idx2 = runs.findIndex(r => r.run_id === preselectRun2);
+                if (idx2 >= 0) run2Select.selectedIndex = idx2;
+            }
+            // If no query params, default to distinct selections
+            if (!preselectRun1 && !preselectRun2 && runs.length >= 2) {
                 run2Select.selectedIndex = 1;
             }
 
             run1Select.disabled = false;
             run2Select.disabled = false;
             compareBtn.disabled = false;
+
+            // Auto-trigger compare if both preselected and distinct
+            if (preselectRun1 && preselectRun2 && preselectRun1 !== preselectRun2) {
+                document.getElementById('compareBtn').click();
+            }
         }
 
         function showError(message) {
@@ -396,6 +414,9 @@
             currentRun1Id = run1;
             currentRun2Id = run2;
 
+            document.getElementById('errorContainer').innerHTML = '';
+            document.getElementById('warningContainer').innerHTML = '';
+
             clearError();
             clearWarning();
 
@@ -418,7 +439,9 @@
 
                 if (!res.ok) {
                     if (res.status === 404) {
-                        throw new Error('One or both runs not found. They may be empty or unavailable.');
+                        throw new Error('These runs cannot be compared (missing or invalid inputs).');
+                    } else if (res.status === 400) {
+                        throw new Error('These runs cannot be compared (no shared peptides or invalid inputs).');
                     } else if (res.status === 401) {
                         window.location.href = '/static/login.html';
                         return;

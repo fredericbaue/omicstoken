@@ -106,3 +106,96 @@
 - Core idea: convert scientific data (starting with peptides) into vectors so
   that semantic search, comparison, and AI interpretation become first-class
   workflows for labs and biotech.
+---------------------------------------------------------
+## 2025-12-01 - Export Auth Hardened (Task 1.1)
+- export_run.py now requires a Bearer token from --token or API_TOKEN env, fails fast when missing, and prints clear messages for 401/404 responses; successful calls still write {run_id}_omics_export_v1.json.
+- Usage: set API_TOKEN in the environment, then run `python scripts/export_run.py <run_id> --base-url http://localhost:8000`; or pass explicitly `python scripts/export_run.py <run_id> --base-url http://localhost:8000 --token YOUR_TOKEN`.
+---------------------------------------------------------
+## 2025-12-01 - FAISS Rebuild Hardened (Task 1.2)
+- search.rebuild_faiss_index now opens a fresh DB connection when None for thread safety, builds into temporary files, and atomically swaps them; failures return 0, log, and leave the prior index intact; empty datasets remove old index artifacts.
+- embed/delete flows now call rebuild with thread-safe connection handling and log failures; re_embed_all script updated to use the hardened rebuild.
+- Added tests (tests/test_rebuild_faiss_index.py) for happy path and simulated write failure.
+- Usage: call search.rebuild_faiss_index(None, DATA_DIR) when running from background threads; index files are replaced only after a successful build.
+---------------------------------------------------------
+## 2025-12-01 - ESM-2 Engine Stabilized (Task 1.3)
+- embeddings.py now caches tokenizer/model globally, normalizes sequences (strip+upper), warns on invalid input, and returns a deterministic 320-dim zero vector on invalid input or model/shape failures.
+- All embeddings enforce EMBEDDING_DIM==320; shape mismatches or HF errors log and fall back to zero without crashing.
+- Added tests (tests/test_embeddings_engine.py) covering valid embeddings, invalid/empty sequences returning zeros, and model/tokenizer caching (single load).
+- Usage: continue calling peptide_to_vector(seq); it now guarantees a float32 vector of length 320 and handles invalid inputs gracefully.
+---------------------------------------------------------
+## 2025-12-01 - Background Tasks Hardened (Task 1.4)
+- Each FAISS rebuild is serialized with a process-level lock; background callers pass None so rebuild opens/closes its own DB connection safely; waits are logged when another rebuild is in progress.
+- embed() now wraps DB work in try/except/finally with rollback-on-error and still triggers thread-safe rebuild; connections always close.
+- Added concurrency test (tests/test_background_db_safety.py) to ensure overlapping rebuilds do not overlap writes and artifacts remain valid.
+- Usage: background tasks should call search.rebuild_faiss_index(None, DATA_DIR); rebuild waits if another is running, then atomically swaps index files.
+---------------------------------------------------------
+## 2025-12-01 - Endpoint Robustness (Task 1.5)
+- All user-scoped routes now enforce run ownership consistently; embedding helper (_embed_run) is shared by the route and background tasks and checks owner IDs, using per-task DB connections with rollback on error.
+- FAISS rebuild remains serialized and is invoked thread-safely after embeds; unexpected failures surface as clean HTTP errors instead of crashes.
+- Added tests (tests/test_endpoint_ownership.py) to cover ownership enforcement for export and embed routes.
+- Usage: routes that touch runs require the authenticated user to own the run; unauthorized access returns 404/403-style HTTPExceptions without leaking details.
+---------------------------------------------------------
+## 2025-12-01 - Legacy Embeddings Isolated (Task 2.1)
+- Marked the old `embeddings` table in db.py as LEGACY/compat-only; canonical flows use `peptide_embeddings` exclusively with clarified docstrings.
+- Active helpers (get_embedding/get_all_embeddings_data/insert_peptide_embedding) target `peptide_embeddings`; legacy insert is labeled to avoid accidental use.
+- Added test (tests/test_legacy_table_isolation.py) to assert canonical getters avoid legacy table usage.
+- Usage: new code must read/write embeddings via peptide_embeddings; legacy table remains only for migration compatibility.
+---------------------------------------------------------
+## 2025-12-01 - Embedder Interface Added (Task 2.2)
+- Added BaseEmbedder interface and Esm2Embedder implementation with cached tokenizer/model, normalized sequences (strip+upper), and deterministic zero-vector fallback; kept EMBEDDING_DIM=320.
+- peptide_to_vector now delegates to a default Esm2Embedder, preserving public behavior while enabling swap-in embedders.
+- Updated tests (tests/test_embeddings_engine.py) to cover the interface, zero-vector fallback, caching, and wrapper behavior.
+- Usage: continue calling peptide_to_vector(seq) or use Esm2Embedder.embed; both return float32 vectors of length 320 with safe fallbacks.
+---------------------------------------------------------
+## 2025-12-01 - Config & Embedder Factory (Task 2.3)
+- Added config.py to centralize DATA_DIR, EMBEDDER_NAME, and ESM model name; app/re_embed_all now import DATA_DIR from config.
+- embeddings.py now uses config for model selection and includes an embedder factory (create_embedder) with Esm2Embedder as the default; peptide_to_vector delegates via the factory.
+- Tests updated (tests/test_embeddings_engine.py) to verify default Esm2 selection, zero-vector fallback, caching, and factory error on unknown embedder.
+- Usage: by default EMBEDDER_NAME=esm2 and ESM_MODEL_NAME=facebook/esm2_t6_8M_UR50D; override via env if future alternate embedders are added.
+---------------------------------------------------------
+## 2025-12-01 - Config Defaults Documented (Task 2.4)
+- config.py now documents defaults for DATA_DIR, EMBEDDER_NAME (default esm2), and ESM_MODEL_NAME; all modules use config for these settings.
+- Added sanity test (tests/test_config_sanity.py) to validate default config import, embedder factory defaulting to Esm2, and DATA_DIR creation.
+- Updated scripts/tests to reference DATA_DIR via config for consistency.
+---------------------------------------------------------
+## 2025-12-01 - Logging Centralized (Task 2.5)
+- Added centralized logging config (config.py) with env-controlled level/format; defaults to INFO and avoids leaking sensitive data.
+- Key pipeline paths now log via module loggers instead of prints (upload, embed/background embedding, rebuilds); warnings/errors use logging consistently.
+- Added sanity test (tests/test_logging_sanity.py) to ensure logging config loads, DATA_DIR is set, and embedder warnings emit logs.
+- Usage: adjust LOG_LEVEL/LOG_FORMAT env vars; default embedder and pipeline behavior unchanged.
+---------------------------------------------------------
+## 2025-12-01 - Pivot to Product/UX
+- Recorded upcoming structural task 2.6 (request/response logging middleware with redaction & correlation IDs) for later.
+- Added Product/UX section with tasks 4.1–4.4; 4.1 will surface run lists with metadata and links to summary/fingerprint/compare/export flows for scientists.
+---------------------------------------------------------
+## 2025-12-01 - Scientist Run Dashboard (Task 4.1)
+- runs.html now shows status badges (Ready/Processing/Not embedded) based on embedding counts, grouped action buttons (Explore, Maintenance, Danger), and inline hints for incomplete/empty runs.
+- Added client-side search and status filtering for runs (by run_id/filename/instrument) without backend changes.
+- Styling kept minimal and consistent with the classic UI.
+---------------------------------------------------------
+## 2025-12-01 - Fingerprint Insight Panel (Task 4.2)
+- fingerprint.html now shows an insight summary card (totals, largest/smallest clusters) with PI-friendly phrasing.
+- Cluster rows are clickable; selecting highlights PCA points, dims others, and shows a Selected Cluster panel with stats and a one-line interpretation.
+- Added a short “How to read this” explainer under the PCA plot and navigation links to Runs and Summary.
+- Improved error handling: clean messages for 400/404 and graceful skips for missing cluster fields.
+---------------------------------------------------------
+## 2025-12-01 - Cluster → Peptide Drilldown (Task 4.2.1)
+- Added a drilldown panel in fingerprint.html that shows peptides for the selected cluster with sorting, 50-at-a-time pagination, and dark-theme styling.
+- Selecting a cluster now reveals its peptides (sequence, length, hydrophobicity, intensity) and reuses the PCA highlighting.
+- Improved usability for PIs: see cluster summary, highlight on PCA, and immediately inspect underlying peptides without backend changes.
+---------------------------------------------------------
+## 2025-12-01 - Multi-Run Export Bundle (Task 5.1)
+- Added POST /export/bundle to package multiple OmicsToken v1 JSON exports into an in-memory ZIP (one file per run + bundle.json manifest) with ownership/embedding validation (all-or-nothing).
+- New CLI scripts/export_bundle.py posts run_ids, saves omics_bundle_<timestamp>.zip, and handles token/env resolution and errors.
+- Tests (tests/test_export_bundle.py) cover unauthorized, success ZIP structure, and incomplete-run 400 responses.
+---------------------------------------------------------
+## 2025-12-01 - Automated Insight Report (Task 5.2)
+- Added GET /report/{run_id} to return a structured insight report (cluster stats, largest/smallest, hydrophobicity patterns, plain-language summary) derived from existing fingerprints with ownership/embedding validation.
+- New frontend viewer /static/report.html to render the report with navigation to Summary/Fingerprint/Compare.
+- Tests (tests/test_report_endpoint.py) cover unauthorized, success, incomplete-run 400, and wrong-owner 404.
+---------------------------------------------------------
+## 2025-12-01 - Programmatic Upload & API Tokens (Task 5.3)
+- Added API tokens: POST /auth/api-tokens returns a one-time plain token (hash stored); DELETE /auth/api-tokens/{id} revokes tokens; auth helper now accepts Bearer API tokens in addition to JWT.
+- New programmatic upload endpoint POST /api/runs (supports auto_embed) using existing pipeline; validates ownership and features.
+- CLI scripts/upload_run.py posts runs with features JSON and optional auto-embed using API_TOKEN or --token.
+- Tests (tests/test_api_tokens_and_upload.py) cover token creation response, API token auth for /api/runs, and feature validation.

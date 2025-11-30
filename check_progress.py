@@ -5,8 +5,9 @@ import os
 
 sys.path.append(os.getcwd())
 import db
+import config
 
-DATA_DIR = "data"
+DATA_DIR = config.DATA_DIR
 
 con = db.get_db_connection(DATA_DIR)
 cur = con.cursor()

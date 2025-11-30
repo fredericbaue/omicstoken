@@ -3,8 +3,9 @@ import os
 import db
 import importers
 from embeddings import peptide_to_vector, EMBEDDING_DIM
+import config
 
-DATA_DIR = "data"
+DATA_DIR = config.DATA_DIR
 FILENAME = "Melanoma vs. MPNST.csv"
 FILEPATH = os.path.join(DATA_DIR, FILENAME)
 RUN_ID = "RUN_MELANOMA_VS_MPNST"

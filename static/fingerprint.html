@@ -18,6 +18,36 @@
             height: 60vh;
             width: 100%;
         }
+        .summary-card {
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            margin-bottom: 1rem;
+        }
+        .inline-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.75rem;
+        }
+        .selected-cluster {
+            margin-top: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+        }
+        .text-muted-block {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-top: 0.75rem;
+        }
+        .nav-links {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -25,11 +55,18 @@
         <div class="header">
             <h1>Semantic Fingerprint</h1>
             <h2 id="runIdHeader" class="text-muted" style="margin-top: -0.5rem;"></h2>
+            <div class="nav-links">
+                <a href="/static/runs.html" class="btn btn-secondary">← Back to Runs</a>
+                <a id="summaryLink" href="#" class="btn btn-secondary">View Summary</a>
+            </div>
         </div>
 
         <p id="loading" class="text-center text-muted" style="padding: 2rem;">Loading fingerprint...</p>
+        <div id="errorBox" class="text-center text-muted hidden" style="padding: 1rem; color: #ff8a80;"></div>
 
         <div id="fingerprintContent" class="hidden">
+            <div class="summary-card" id="summaryCard"></div>
+
             <div class="grid-2">
                 <div>
                     <h3>Cluster Analysis</h3>
@@ -48,11 +85,15 @@
                             <!-- Rows will be inserted here -->
                         </tbody>
                     </table>
+                    <div class="selected-cluster hidden" id="selectedClusterPanel"></div>
                 </div>
                 <div style="min-width: 0;">
                     <h3>Embedding 2D Projection (PCA)</h3>
                     <div class="chart-container">
                         <canvas id="fingerprintChart"></canvas>
+                    </div>
+                    <div class="text-muted-block">
+                        Nearby points represent peptides similar in the embedding space. Colors indicate clusters of peptides with shared biochemical features.
                     </div>
                 </div>
             </div>
@@ -70,6 +111,9 @@
             'rgba(255, 159, 64, 0.7)'
         ];
 
+        let fingerprintChart;
+        let selectedClusterId = null;
+
         window.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('token');
             const urlParams = new URLSearchParams(window.location.search);
@@ -78,6 +122,8 @@
             const loadingEl = document.getElementById('loading');
             const contentEl = document.getElementById('fingerprintContent');
             const runIdHeader = document.getElementById('runIdHeader');
+            const errorBox = document.getElementById('errorBox');
+            const summaryLink = document.getElementById('summaryLink');
 
             if (!runId) {
                 loadingEl.innerHTML = '<span style="color: red;">Error: No run_id specified in URL.</span>';
@@ -85,6 +131,7 @@
             }
             
             runIdHeader.textContent = `Run ID: ${runId}`;
+            summaryLink.href = `/static/summary.html?run_id=${runId}`;
 
             if (!token) {
                 loadingEl.innerHTML = 'You are not logged in. <a href="/static/login.html">Please log in</a>.';
@@ -100,8 +147,12 @@
                     return;
                 }
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || `Failed to load fingerprint (status: ${response.status})`);
+                    const errorData = await safeJson(response);
+                    const msg = errorData?.detail || 'This run does not have enough peptides to build a fingerprint.';
+                    loadingEl.classList.add('hidden');
+                    errorBox.classList.remove('hidden');
+                    errorBox.textContent = msg;
+                    return;
                 }
 
                 const data = await response.json();
@@ -111,23 +162,28 @@
 
                 // Populate total peptides count
                 document.getElementById('totalPeptides').textContent = `${data.total_peptides} total peptides in run.`;
+                renderSummary(data);
+                window.__fingerprintData = data;
 
                 // Populate cluster table
                 const tableBody = document.getElementById('clusterTable').querySelector('tbody');
                 data.clusters.forEach(cluster => {
+                    if (cluster == null || cluster.id == null) return;
                     const row = tableBody.insertRow();
+                    row.dataset.clusterId = cluster.id;
                     row.innerHTML = `
                         <td><span class="color-dot" style="background-color: ${CLUSTER_COLORS[cluster.id % CLUSTER_COLORS.length]}"></span>${cluster.id}</td>
-                        <td>${cluster.size}</td>
-                        <td>${cluster.mean_length}</td>
-                        <td>${cluster.mean_hydrophobicity}</td>
-                        <td>${cluster.mean_intensity.toExponential(2)}</td>
+                        <td>${cluster.size ?? '—'}</td>
+                        <td>${cluster.mean_length ?? '—'}</td>
+                        <td>${cluster.mean_hydrophobicity ?? '—'}</td>
+                        <td>${cluster.mean_intensity != null ? cluster.mean_intensity.toExponential(2) : '—'}</td>
                     `;
+                    row.addEventListener('click', () => selectCluster(cluster, data.total_peptides));
                 });
 
                 // Create scatter plot
                 const ctx = document.getElementById('fingerprintChart').getContext('2d');
-                new Chart(ctx, {
+                fingerprintChart = new Chart(ctx, {
                     type: 'scatter',
                     data: {
                         datasets: data.clusters.map(cluster => ({
@@ -166,6 +222,74 @@
                 loadingEl.innerHTML = `<span style="color: red;">Error: ${e.message}</span>`;
             }
         });
+
+        function safeJson(response) {
+            return response.json().catch(() => null);
+        }
+
+        function renderSummary(data) {
+            const summaryCard = document.getElementById('summaryCard');
+            const clusters = Array.isArray(data.clusters) ? data.clusters.filter(c => c && typeof c.size === 'number') : [];
+            const total = data.total_peptides || 0;
+            const totalClusters = clusters.length;
+            const sorted = [...clusters].sort((a, b) => b.size - a.size);
+            const largest = sorted[0];
+            const smallest = sorted[sorted.length - 1];
+            const pct = (size) => total > 0 ? `${((size / total) * 100).toFixed(1)}%` : '—';
+            const largestText = largest ? `Most peptides fall into Cluster ${largest.id} (~${pct(largest.size)}).` : '';
+            const smallestText = smallest ? `Smallest cluster is ${smallest.id} (${pct(smallest.size)}).` : '';
+
+            summaryCard.innerHTML = `
+                <div class="inline-grid">
+                    <div><strong>Total peptides:</strong> ${total}</div>
+                    <div><strong>Total clusters:</strong> ${totalClusters}</div>
+                    <div><strong>Largest cluster:</strong> ${largest ? `${largest.size} (${pct(largest.size)})` : '—'}</div>
+                    <div><strong>Smallest cluster:</strong> ${smallest ? `${smallest.size} (${pct(smallest.size)})` : '—'}</div>
+                </div>
+                <p class="text-muted-block" style="margin-top: 0.5rem;">${largestText} ${smallestText}</p>
+            `;
+        }
+
+        function selectCluster(cluster, totalPeptides) {
+            selectedClusterId = cluster.id;
+            highlightChart(cluster.id);
+            renderSelectedCluster(cluster, totalPeptides);
+        }
+
+        function highlightChart(clusterId) {
+            if (!fingerprintChart) return;
+            fingerprintChart.data.datasets.forEach(ds => {
+                const num = parseInt(ds.label.replace('Cluster ', ''), 10);
+                const baseColor = CLUSTER_COLORS[num % CLUSTER_COLORS.length];
+                if (clusterId == null) {
+                    ds.backgroundColor = baseColor;
+                } else if (ds.label === `Cluster ${clusterId}`) {
+                    ds.backgroundColor = baseColor.replace(/0\.7\)/, '1)');
+                } else {
+                    ds.backgroundColor = baseColor.replace(/0\.7\)/, '0.15)');
+                }
+            });
+            fingerprintChart.update();
+        }
+
+        function renderSelectedCluster(cluster, totalPeptides) {
+            const panel = document.getElementById('selectedClusterPanel');
+            if (!cluster) {
+                panel.classList.add('hidden');
+                panel.innerHTML = '';
+                return;
+            }
+            const pct = totalPeptides > 0 ? `${((cluster.size / totalPeptides) * 100).toFixed(1)}%` : '—';
+            panel.classList.remove('hidden');
+            panel.innerHTML = `
+                <h4>Selected Cluster ${cluster.id}</h4>
+                <p>Size: ${cluster.size ?? '—'} (${pct} of peptides)</p>
+                <p>Mean length: ${cluster.mean_length ?? '—'}</p>
+                <p>Mean hydrophobicity: ${cluster.mean_hydrophobicity ?? '—'}</p>
+                <p>Mean intensity: ${cluster.mean_intensity != null ? cluster.mean_intensity.toExponential(2) : '—'}</p>
+                <p class="text-muted">Interpretation: Cluster ${cluster.id} appears ${cluster.mean_hydrophobicity > 0 ? 'more hydrophobic' : 'balanced'} with average length ${cluster.mean_length ?? '—'}.</p>
+            `;
+        }
     </script>
 </body>
 </html>

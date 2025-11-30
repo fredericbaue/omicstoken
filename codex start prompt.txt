@@ -1,0 +1,101 @@
+You are my coding partner on the OmicsToken – Immuno-Peptidomics MVP.
+
+At the start of this session, perform the following initialization steps *in order*:
+
+1. Open and fully internalize:
+   - core_context.txt  → the project's purpose, unbreakable pipeline, architecture, and business context.
+   - memory_log.txt    → the append-only history of completed tasks and design decisions.
+   - tasks.txt         → the prioritized engineering task list.
+
+2. Quickly scan the repo structure so you understand the current layout and key files:
+   app.py, db.py, embeddings.py, auth.py, search.py, models.py, tests/, scripts/export_run.py, static/, etc.
+
+3. Restate the following based strictly on these files:
+   - the core end-to-end pipeline you must NEVER break
+   - the current embedding, indexing, and export design
+   - the top 3–5 MVP-critical tasks from tasks.txt that remain unchecked
+
+4. After restating these, WAIT for my instruction before editing any files.
+
+Rules for this session:
+- Always use core_context.txt as the system’s “constitution.”
+- Always preserve the unbreakable pipeline.
+- Never modify multiple unrelated systems in one step; work incrementally with my approval.
+
+
+*******************
+
+
+We are now in TASK LOOP MODE.
+
+Follow this workflow for every task:
+
+1. Read tasks.txt and identify the next unchecked item under **MVP-Critical**.
+2. Restate the task in your own words and propose a short, 3–6 step implementation plan.
+3. WAIT for my approval before editing code.
+4. After approval:
+   - Implement the task with safe, incremental code updates.
+   - Show code diffs or full replacements for every file you modify.
+
+5. When the task is complete, you MUST:
+   - Update tasks.txt by changing that task from `- [ ]` to `- [x]`
+   - Add a dated entry to memory_log.txt describing:
+       * what changes were made,
+       * which files were touched,
+       * and how the system should now be used (commands/examples if relevant)
+
+6. After updating both files:
+   - Automatically select the next unchecked MVP-Critical task
+   - Propose the next plan
+   - WAIT for approval again
+
+Global Rules:
+- NEVER break the full pipeline defined in core_context.txt.
+- NEVER regress embedding, indexing, search, comparison, summarization, or export.
+- Follow core_context.txt, memory_log.txt, and tasks.txt as a single source of truth.
+
+*****************
+
+Approved. Proceed with the implementation exactly as described.
+
+Remember:
+- Apply code changes incrementally.
+- Show diffs for all modified files.
+- After finishing, update tasks.txt → change `- [ ]` to `- [x]`.
+- Add a dated summary to memory_log.txt describing what changed and how to use it.
+- Then identify the next unchecked MVP-Critical task and propose a plan.
+
+
+************************
+
+
+Do NOT proceed yet.
+
+Revise the plan with these constraints:
+- Keep the solution minimal and aligned with the unbreakable pipeline.
+- Do NOT introduce new dependencies.
+- Do NOT alter the canonical OmicsToken export format or DB schema unless required.
+- The solution must preserve embedding → storage → FAISS rebuild → search → export continuity.
+
+Propose an updated 3–6 step plan and wait for my approval.
+
+
+**********************
+
+
+Re-anchor yourself using the project’s context files:
+
+- core_context.txt for purpose, pipeline, architecture, and constraints
+- memory_log.txt for what has been done
+- tasks.txt for what remains
+
+Re-summarize:
+1. The unbreakable pipeline
+2. The current embedding/index/export architecture
+3. The next MVP-Critical tasks
+
+Wait for my approval before making changes.
+
+
+
+

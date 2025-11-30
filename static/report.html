@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Run Insight Report</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .card { border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; background: var(--card-bg); }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { padding: 0.5rem; border-bottom: 1px solid var(--border-color); text-align: left; }
+        .nav-links { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Run Insight Report</h1>
+            <h2 id="runId" class="text-muted"></h2>
+            <div class="nav-links">
+                <a id="summaryLink" href="#" class="btn btn-secondary">Summary</a>
+                <a id="fingerprintLink" href="#" class="btn btn-secondary">Fingerprint</a>
+                <a href="/static/compare.html" class="btn btn-secondary">Compare</a>
+                <a href="/static/runs.html" class="btn btn-secondary">Back to Runs</a>
+            </div>
+        </div>
+
+        <p id="loading" class="text-center text-muted" style="padding: 2rem;">Loading report...</p>
+        <div id="errorBox" class="text-center text-muted hidden" style="padding:1rem;color:#ff8a80;"></div>
+
+        <div id="content" class="hidden">
+            <div class="grid-2" style="margin-bottom:1rem;">
+                <div class="card">
+                    <h3>Key Metrics</h3>
+                    <p>Total peptides: <strong id="totalPeptides">-</strong></p>
+                    <p>Total clusters: <strong id="totalClusters">-</strong></p>
+                </div>
+                <div class="card">
+                    <h3>Plain-Language Summary</h3>
+                    <p id="plainSummary" class="text-muted"></p>
+                </div>
+            </div>
+
+            <div class="grid-2" style="margin-bottom:1rem;">
+                <div class="card">
+                    <h3>Largest Cluster</h3>
+                    <p id="largestCluster">-</p>
+                </div>
+                <div class="card">
+                    <h3>Smallest Cluster</h3>
+                    <p id="smallestCluster">-</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Cluster Overview</h3>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Size</th><th>%</th><th>Mean Length</th><th>Mean Hydrophobicity</th><th>Mean Intensity</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clusterTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const runId = params.get('run_id');
+        const token = localStorage.getItem('token');
+        const loading = document.getElementById('loading');
+        const errorBox = document.getElementById('errorBox');
+        const content = document.getElementById('content');
+
+        if (!token) {
+            window.location.href = '/static/login.html';
+        }
+
+        async function loadReport() {
+            if (!runId) {
+                loading.classList.add('hidden');
+                errorBox.classList.remove('hidden');
+                errorBox.textContent = 'No run_id provided.';
+                return;
+            }
+            document.getElementById('runId').textContent = `Run: ${runId}`;
+            document.getElementById('summaryLink').href = `/static/summary.html?run_id=${runId}`;
+            document.getElementById('fingerprintLink').href = `/static/fingerprint.html?run_id=${runId}`;
+
+            try {
+                const resp = await fetch(`/report/${runId}`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (resp.status === 401) {
+                    window.location.href = '/static/login.html';
+                    return;
+                }
+                if (!resp.ok) {
+                    const err = await safeJson(resp);
+                    const msg = err?.detail || 'Unable to load report.';
+                    throw new Error(msg);
+                }
+                const data = await resp.json();
+                renderReport(data);
+            } catch (e) {
+                loading.classList.add('hidden');
+                errorBox.classList.remove('hidden');
+                errorBox.textContent = e.message;
+            }
+        }
+
+        function renderReport(data) {
+            loading.classList.add('hidden');
+            content.classList.remove('hidden');
+            document.getElementById('totalPeptides').textContent = data.total_peptides ?? '-';
+            document.getElementById('totalClusters').textContent = data.total_clusters ?? '-';
+            document.getElementById('plainSummary').textContent = data.plain_language_summary || 'No summary available.';
+
+            const largest = data.largest_cluster;
+            const smallest = data.smallest_cluster;
+            document.getElementById('largestCluster').textContent = largest ?
+                `Cluster ${largest.id}: ${largest.size} peptides (~${largest.pct}%), mean length ${largest.mean_length}, hydrophobicity ${largest.mean_hydrophobicity}` :
+                '—';
+            document.getElementById('smallestCluster').textContent = smallest ?
+                `Cluster ${smallest.id}: ${smallest.size} peptides (~${smallest.pct}%), mean length ${smallest.mean_length}, hydrophobicity ${smallest.mean_hydrophobicity}` :
+                '—';
+
+            const tbody = document.getElementById('clusterTable');
+            tbody.innerHTML = (data.cluster_overview || []).map(c => `
+                <tr>
+                    <td>${c.id}</td>
+                    <td>${c.size}</td>
+                    <td>${c.pct}%</td>
+                    <td>${c.mean_length}</td>
+                    <td>${c.mean_hydrophobicity}</td>
+                    <td>${c.mean_intensity}</td>
+                </tr>
+            `).join('') || '<tr><td colspan="6">No clusters available.</td></tr>';
+        }
+
+        async function safeJson(resp) {
+            try { return await resp.json(); } catch (_) { return null; }
+        }
+
+        loadReport();
+    </script>
+</body>
+</html>

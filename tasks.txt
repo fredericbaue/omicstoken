@@ -16,7 +16,7 @@ All code changes must preserve this end-to-end flow.
 
 ======================================================================
 ## 1 MVP-Critical (Do These First)
-[ ] 1 Fix & Harden Export Authentication
+[x] 1 Fix & Harden Export Authentication
 - Ensure export_run.py uses valid Bearer tokens by default and clearly reports
   401 errors and missing tokens.
 - Optionally add a local "demo token" path for offline demos that is safe but
@@ -24,43 +24,71 @@ All code changes must preserve this end-to-end flow.
 - Guarantee that /export/embeddings/{run_id} consistently returns the canonical
   OmicsToken v1 export payload for any run that has embeddings.
 
-[ ]  1.2 Harden FAISS Index Rebuild
+[x]  1.2 Harden FAISS Index Rebuild
 - Make search.rebuild_faiss_index safe and idempotent when called after each
   embedding operation.
 - Ensure index rebuild cannot corrupt the index if interrupted.
 - Add basic error handling and logging when index rebuild fails so the demo
   can degrade gracefully instead of crashing.
 
-[ ]  1.3 Stabilize ESM-2 Embedding Engine
+[x]  1.3 Stabilize ESM-2 Embedding Engine
 - Avoid repeated model reloads by ensuring get_model() uses a proper global cache.
 - Validate sequences early (strip/uppercase, non-empty) to minimize failed calls.
 - Add explicit tests that EMBEDDING_DIM == 320 and all stored embeddings match
   this length.
 
 
-[ ]  1.4 Background Task & DB Safety
+[x]  1.4 Background Task & DB Safety
 - Verify that embed(run_id) and its DB access pattern are safe when called from
   a threadpool.
 - Avoid DB connection reuse across threads; ensure each task uses its own
   connection.
 - Ensure concurrent uploads/embeddings cannot corrupt the DB or index.
 
-[ ]  1.5 Endpoint Robustness
+[x]  1.5 Endpoint Robustness
 - Ensure all user-scoped routes enforce run ownership (current_active_user).
 - On errors, return clear HTTPException messages rather than crashing.
 
 ======================================================================
 [ ]  🧱 2. Structural Code Quality Tasks
 
-[ ]  2.1 Separate Legacy Tables From Current Logic
+[x]  2.1 Separate Legacy Tables From Current Logic
 - Clearly mark the old embeddings table in db.py as legacy.
 - Prefer peptide_embeddings for all new work.
 - Remove unused helper functions that reference obsolete tables or columns,
   unless needed for migration.
 
-[ ] 2.2 Introduce a Formal Embedder Interface
-- Add a BaseEmbedder class, then wrap ESM-2 inside it:
-  ```python
-  class BaseEmbedder:
-      def embed(self, sequence: str) -> np.ndarray:
-          ...
+[x] 2.2 Introduce a Formal Embedder Interface
+  - Add a BaseEmbedder class, then wrap ESM-2 inside it:
+    ```python
+    class BaseEmbedder:
+        def embed(self, sequence: str) -> np.ndarray:
+            ...
+
+[x] 2.3 Centralize Configuration & Embedder Selection
+  - Centralize model names/data dirs; add embedder factory selecting default Esm2.
+  - Keep ESM-2 as default; allow future swaps with validation/logging.
+
+[x] 2.4 Validate & Document Config Defaults
+  - Centralize config usage via config.py, document defaults and env overrides.
+  - Add sanity test to ensure default embedder selection and DATA_DIR creation work.
+
+[x] 2.5 Logging Consistency & Centralization
+  - Add centralized logging config (level/format), ensure key pipeline steps log clearly without secrets, and add a logging sanity test.
+
+[ ] 2.6 Add request/response logging middleware with redaction and correlation IDs
+      <!-- Structural: refined logging & diagnostics for later -->
+
+======================================================================
+## 4. Product/UX
+
+[x] 4.1 Scientist Run Dashboard MVP
+      <!-- Show a list of the current user's runs with key metadata (name, created_at, status, number of peptides, has_embeddings flag), plus links/buttons into summary, fingerprint, comparison, and export actions. -->
+[x] 4.2 Run Fingerprint Visualization UI
+[x] 4.2.1 Cluster → Peptide Drilldown Panel
+[x] 4.3 Run Comparison View
+[ ] 4.4 Peptide Explanation UI
+
+[x] 5.1 Multi-Run Export Bundle (“OmicsToken Vault”)
+[x] 5.2 Automated Insight Report
+[x] 5.3 Programmatic Upload & Stable API Tokens (Lab Integration)

@@ -55,6 +55,7 @@ def _create_tables(con: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass # Column likely already exists
 
+    # LEGACY TABLE (do not use for new code paths): kept for backward compatibility/migration only.
     con.execute("""CREATE TABLE IF NOT EXISTS embeddings(
         run_id TEXT,
         feature_id TEXT,
@@ -120,7 +121,7 @@ def insert_feature(con: sqlite3.Connection, run_id: str, feature_data: models.Fe
     )
 
 def insert_embedding(con: sqlite3.Connection, run_id: str, feature_id: str, method: str, polarity: str, vector: List[float]):
-    """Inserts or replaces a peptide embedding into the database (Old table)."""
+    """LEGACY: Inserts into the old embeddings table. Avoid in new flows; use insert_peptide_embedding instead."""
     con.execute(
         """INSERT OR REPLACE INTO embeddings(run_id, feature_id, method, polarity, vec_json)
            VALUES(?,?,?,?,?)""",
@@ -178,10 +179,8 @@ import json
 import sqlite3
 
 def get_embedding(con: sqlite3.Connection, run_id: str, feature_id: str) -> Optional[List[float]]:
-    """Retrieves a specific peptide embedding from the new table."""
+    """Retrieve a peptide embedding from the canonical peptide_embeddings table."""
     cur = con.cursor()
-    # FIXED: Changed table from 'embeddings' to 'peptide_embeddings'
-    # FIXED: Changed column from 'vec_json' to 'embedding'
     cur.execute("SELECT embedding FROM peptide_embeddings WHERE run_id=? AND feature_id=?", (run_id, feature_id))
     row = cur.fetchone()
     return json.loads(row[0]) if row else None
@@ -195,7 +194,7 @@ def get_feature_properties(con: sqlite3.Connection, run_id: str, feature_id: str
     return (row[0], row[1]) if row else None
 
 def get_all_embeddings_data(con: sqlite3.Connection) -> List[Tuple[str, str, str]]:
-    """Retrieves all embedding data (run_id, feature_id, embedding) from the database."""
+    """Retrieves all embedding data (run_id, feature_id, embedding) from the canonical peptide_embeddings table."""
     cur = con.cursor()
     cur.execute("SELECT run_id, feature_id, embedding FROM peptide_embeddings")
     return cur.fetchall()

@@ -1,7 +1,9 @@
 import json
+import logging
 import os
 import sqlite3
-from typing import List, Tuple
+import threading
+from typing import List, Optional, Tuple
 
 import faiss
 import numpy as np
@@ -14,6 +16,7 @@ import models
 # --- Configuration ---
 FAISS_INDEX_FILENAME = "peptides.faiss"
 FAISS_IDS_FILENAME = "peptides_ids.json"
+_REBUILD_LOCK = threading.Lock()
 
 
 def get_faiss_index_path(data_dir: str) -> str:
@@ -30,61 +33,91 @@ def get_faiss_ids_path(data_dir: str) -> str:
     return os.path.join(data_dir, FAISS_IDS_FILENAME)
 
 
-def rebuild_faiss_index(con: sqlite3.Connection, data_dir: str) -> int:
+def rebuild_faiss_index(
+    con: Optional[sqlite3.Connection],
+    data_dir: str,
+) -> int:
     """
     Rebuild the global FAISS index from all peptide embeddings in the database.
 
-    - Reads all embeddings via db.get_all_embeddings_data(con)
-    - Normalizes them (L2) and builds a faiss.IndexFlatL2
-    - Persists the index to disk along with a JSON ID map
+    - Uses the provided connection if given; otherwise opens a fresh connection
+      (safe for background threads).
+    - Reads embeddings via db.get_all_embeddings_data.
+    - Normalizes vectors (L2) and builds a faiss.IndexFlatL2.
+    - Writes to temporary files then atomically replaces live index/id map.
 
-    This is typically run as a background task. If no embeddings exist, any
-    previously stored index + id map files are removed.
+    If no embeddings exist, any existing index/id files are removed. On failure,
+    the previous index is left intact and 0 is returned.
 
     Returns
     -------
     int
-        The number of vectors in the rebuilt index.
+        The number of vectors in the rebuilt index (0 on failure).
     """
-    print("Rebuilding FAISS index...")
     faiss_index_path = get_faiss_index_path(data_dir)
     faiss_ids_path = get_faiss_ids_path(data_dir)
+    temp_index_path = f"{faiss_index_path}.tmp"
+    temp_ids_path = f"{faiss_ids_path}.tmp"
 
-    rows = db.get_all_embeddings_data(con)
+    if _REBUILD_LOCK.locked():
+        logging.info("FAISS rebuild already in progress; waiting for lock.")
 
-    if not rows:
-        print("No embeddings found to build index.")
-        # Ensure any old index files are removed if no embeddings exist
-        if os.path.exists(faiss_index_path):
-            os.remove(faiss_index_path)
-        if os.path.exists(faiss_ids_path):
-            os.remove(faiss_ids_path)
-        return 0
+    with _REBUILD_LOCK:
+        logging.info("Rebuilding FAISS index...")
+        created_con = False
+        if con is None:
+            con = db.get_db_connection(data_dir)
+            created_con = True
 
-    # rows are expected to be (run_id, feature_id, embedding_json)
-    ids: List[Tuple[str, str]] = [(row[0], row[1]) for row in rows]
-    try:
-        vectors = np.array([json.loads(row[2]) for row in rows], dtype=np.float32)
-    except (json.JSONDecodeError, TypeError, ValueError) as e:
-        # This should not normally happen; surface clearly for debugging.
-        raise RuntimeError(f"Failed to decode embeddings for FAISS index: {e}")
+        try:
+            rows = db.get_all_embeddings_data(con)
 
-    if vectors.ndim != 2:
-        raise RuntimeError(
-            f"Expected 2D vectors array for FAISS index, got shape {vectors.shape}"
-        )
+            if not rows:
+                logging.info("No embeddings found to build index. Removing any existing index files.")
+                for path in (faiss_index_path, faiss_ids_path, temp_index_path, temp_ids_path):
+                    if os.path.exists(path):
+                        os.remove(path)
+                return 0
 
-    d = vectors.shape[1]  # vector dimension
-    index = faiss.IndexFlatL2(d)  # Using L2 distance
-    faiss.normalize_L2(vectors)   # Normalize vectors to use L2 as cosine similarity
-    index.add(vectors)
+            ids: List[Tuple[str, str]] = [(row[0], row[1]) for row in rows]
+            try:
+                vectors = np.array([json.loads(row[2]) for row in rows], dtype=np.float32)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                logging.exception("Failed to decode embeddings for FAISS index.")
+                return 0
 
-    faiss.write_index(index, faiss_index_path)
-    with open(faiss_ids_path, "w") as f:
-        json.dump(ids, f)
+            if vectors.ndim != 2:
+                logging.error("Expected 2D vectors array for FAISS index, got shape %s", vectors.shape)
+                return 0
 
-    print(f"FAISS index rebuilt with {index.ntotal} vectors.")
-    return index.ntotal
+            d = vectors.shape[1]
+            index = faiss.IndexFlatL2(d)
+            faiss.normalize_L2(vectors)
+            index.add(vectors)
+
+            # Write to temporary files first, then atomically replace.
+            faiss.write_index(index, temp_index_path)
+            with open(temp_ids_path, "w") as f:
+                json.dump(ids, f)
+
+            os.replace(temp_index_path, faiss_index_path)
+            os.replace(temp_ids_path, faiss_ids_path)
+
+            logging.info("FAISS index rebuilt with %s vectors.", index.ntotal)
+            return index.ntotal
+
+        except Exception:
+            logging.exception("Failed to rebuild FAISS index; leaving prior index intact.")
+            for path in (temp_index_path, temp_ids_path):
+                if os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
+            return 0
+        finally:
+            if created_con:
+                con.close()
 
 
 def search_similar_peptides(

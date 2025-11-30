@@ -11,8 +11,9 @@ sys.path.append(os.getcwd())
 import db
 import search
 import embeddings
+import config
 
-DATA_DIR = "data"
+DATA_DIR = config.DATA_DIR
 
 def test_search():
     print("=" * 60)
