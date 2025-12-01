@@ -1,11 +1,18 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <title>Upload Run - Immuno-Engine</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .dimmed { opacity: 0.5; pointer-events: none; }
+        .status-card { margin-top: 1rem; }
+        .success-panel { margin-top: 1.5rem; }
+        .status-text { margin: 0; color: var(--text-secondary); }
+        .status-strong { color: var(--text-primary); font-weight: 600; }
+        .error-card { border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
+        .success-note { color: var(--text-secondary); margin-top: 0.25rem; }
+    </style>
 </head>
-
 <body>
     <div class="container">
         <div class="header flex-between">
@@ -13,15 +20,14 @@
             <a href="/static/runs.html" class="btn btn-secondary">Back to Runs</a>
         </div>
 
-        <div class="card" style="max-width: 800px; margin: 0 auto;">
-            <form id="uploadForm">
+        <div id="uploadCard" class="card" style="max-width: 800px; margin: 0 auto;">
+            <form id="uploadForm" aria-live="polite">
                 <div class="grid">
                     <div>
                         <label for="fileInput">Peptide Table File</label>
                         <input type="file" id="fileInput" name="file" required
                             style="padding: 1rem; border: 2px dashed var(--border-color); background: rgba(0,0,0,0.2); cursor: pointer;">
-                        <p class="text-sm text-muted" style="margin-top: 0.5rem;">Accepted formats: MaxQuant
-                            (peptides.txt), DIA-NN, Spectronaut, or Generic CSV.</p>
+                        <p class="text-sm text-muted" style="margin-top: 0.5rem;">Accepted formats: MaxQuant (peptides.txt), DIA-NN, Spectronaut, or Generic CSV.</p>
                     </div>
 
                     <div class="grid-2">
@@ -60,8 +66,12 @@
             </form>
         </div>
 
-        <div id="status" class="card" style="display: none; max-width: 800px; margin: 2rem auto; text-align: center;">
-            <!-- Success/Error content will go here -->
+        <div id="status" class="card status-card" style="display: none; max-width: 800px; margin: 2rem auto; text-align: center;" role="status" aria-live="polite"></div>
+
+        <div id="errorCard" class="card error-card" style="display: none; max-width: 800px; margin: 1rem auto;" role="alert"></div>
+
+        <div id="successPanel" class="card success-panel" style="display: none; max-width: 800px; margin: 2rem auto; text-align: center;">
+            <!-- Success details will go here -->
         </div>
     </div>
 
@@ -69,18 +79,40 @@
         const token = localStorage.getItem('token');
         if (!token) window.location.href = '/static/login.html';
 
-        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        const uploadForm = document.getElementById('uploadForm');
+        const statusDiv = document.getElementById('status');
+        const uploadCard = document.getElementById('uploadCard');
+        const errorCard = document.getElementById('errorCard');
+        const successPanel = document.getElementById('successPanel');
+        const submitBtn = document.querySelector('button[type="submit"]');
+
+        function setFormDisabled(disabled) {
+            uploadForm.classList.toggle('dimmed', disabled);
+            uploadForm.querySelectorAll('input, select, button').forEach(el => el.disabled = disabled);
+        }
+
+        function resetPanels() {
+            statusDiv.style.display = 'none';
+            statusDiv.innerHTML = '';
+            errorCard.style.display = 'none';
+            errorCard.innerHTML = '';
+            successPanel.style.display = 'none';
+            successPanel.innerHTML = '';
+            uploadCard.classList.remove('dimmed');
+        }
+
+        uploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const statusDiv = document.getElementById('status');
-            const btn = document.querySelector('button[type="submit"]');
 
+            resetPanels();
             statusDiv.style.display = 'block';
-            statusDiv.innerHTML = '<div style="padding: 2rem;"><h3>Uploading & Ingesting...</h3><p class="text-muted">This may take a moment depending on file size.</p></div>';
-            btn.disabled = true;
-            btn.innerText = "Processing...";
+            statusDiv.innerHTML = '<div style="padding: 1.5rem;"><p class="status-text"><span class="status-strong">Uploading & Ingesting...</span><br>Hang tight while we parse your file.</p></div>';
+            setFormDisabled(true);
+            submitBtn.innerText = "Processing...";
 
+            const file = document.getElementById('fileInput').files[0];
             const formData = new FormData();
-            formData.append('file', document.getElementById('fileInput').files[0]);
+            formData.append('file', file);
             formData.append('format', document.getElementById('formatInput').value);
             formData.append('run_id', document.getElementById('runIdInput').value);
             formData.append('instrument', document.getElementById('instrumentInput').value);
@@ -95,35 +127,61 @@
                     body: formData
                 });
 
-                if (res.ok) {
-                    const data = await res.json();
-                    statusDiv.innerHTML = `
-                        <div style="padding: 1rem;">
-                            <h2 style="color: var(--success-color)">✅ Upload Complete</h2>
-                            <p>Run ID: <strong>${data.run_id}</strong></p>
-                            <p>Ingested <strong>${data.rows_ingested}</strong> peptides.</p>
-                            <p class="text-muted">${data.message}</p>
-                            
-                            <div class="flex" style="justify-content: center; margin-top: 2rem; gap: 1rem; flex-wrap: wrap;">
-                                <a href="/static/runs.html" class="btn btn-primary" style="background: var(--success-color); border: none;">Go to My Runs</a>
-                                <a href="/static/simple_dashboard.html?run_id=${data.run_id}" class="btn btn-secondary">View Dashboard</a>
-                                <a href="/static/summary.html?run_id=${data.run_id}" class="btn btn-secondary">Generate Summary</a>
+                const text = await res.text();
+                let data = null;
+                try { data = JSON.parse(text); } catch (_) {}
+
+                if (res.ok && data && data.run_id) {
+                    const runId = data.run_id;
+                    const rowsIngested = (data.rows_ingested !== undefined && data.rows_ingested !== null) ? data.rows_ingested : 'Unknown';
+                    const message = data.message || 'Upload complete and embedding started in background.';
+                    statusDiv.innerHTML = '<div style="padding: 1rem;"><p class="status-text"><span class="status-strong" style="color: var(--success-color);">Upload complete.</span> Embeddings are running in the background.</p></div>';
+                    uploadCard.classList.add('dimmed');
+                    successPanel.style.display = 'block';
+                    successPanel.innerHTML = `
+                        <div>
+                            <h2 style="color: var(--success-color); margin-top: 0;">Upload complete</h2>
+                            <p>Run ID: <strong>${runId}</strong></p>
+                            <p>Rows ingested: <strong>${rowsIngested}</strong></p>
+                            <p class="success-note">${message}</p>
+                            <div class="flex" style="justify-content: center; margin-top: 1.5rem; gap: 1rem; flex-wrap: wrap;">
+                                <a href="/static/simple_dashboard.html?run_id=${encodeURIComponent(runId)}" class="btn btn-primary">Open Run Dashboard</a>
+                                <a href="/static/runs.html" class="btn btn-secondary">Go to My Runs</a>
                             </div>
+                            <p class="text-muted" style="margin-top: 1rem;">You can revisit this run anytime while embeddings finish.</p>
                         </div>
                     `;
-                    document.getElementById('uploadForm').reset();
+                    uploadForm.reset();
                 } else {
-                    const err = await res.text();
-                    statusDiv.innerHTML = `<h3 style="color: var(--danger-color)">Upload Failed</h3><p>${err}</p>`;
+                    const detail = (data && data.detail) ? data.detail : (text ? text : `Upload failed (HTTP ${res.status}).`);
+                    statusDiv.innerHTML = `
+                        <div style="padding: 1rem;">
+                            <p class="status-text"><span class="status-strong" style="color: var(--danger-color);">Upload failed.</span> Please review the error and try again.</p>
+                        </div>
+                    `;
+                    errorCard.style.display = 'block';
+                    errorCard.innerHTML = `
+                        <div>
+                            <h3 style="margin-top: 0; color: var(--danger-color);">Upload error</h3>
+                            <p class="text-muted">${detail}</p>
+                        </div>
+                    `;
+                    setFormDisabled(false);
                 }
             } catch (e) {
-                statusDiv.innerHTML = `<h3 style="color: var(--danger-color)">Error</h3><p>${e.message}</p>`;
+                statusDiv.innerHTML = `<div style="padding: 1rem;"><p class="status-text"><span class="status-strong" style="color: var(--danger-color);">Error.</span> ${e.message}</p></div>`;
+                errorCard.style.display = 'block';
+                errorCard.innerHTML = `
+                    <div>
+                        <h3 style="margin-top: 0; color: var(--danger-color);">Network or client error</h3>
+                        <p class="text-muted">${e.message}</p>
+                    </div>
+                `;
+                setFormDisabled(false);
             } finally {
-                btn.disabled = false;
-                btn.innerText = "Upload & Ingest";
+                submitBtn.innerText = "Upload & Ingest";
             }
         });
     </script>
 </body>
-
 </html>

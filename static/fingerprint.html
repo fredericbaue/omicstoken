@@ -48,6 +48,24 @@
             align-items: center;
             margin-bottom: 0.5rem;
         }
+        .cluster-peptides {
+            margin-top: 0.75rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 0.75rem;
+        }
+        .cluster-peptide-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+        .cluster-peptide-table th,
+        .cluster-peptide-table td {
+            padding: 0.4rem 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .cluster-peptide-table tbody tr:hover td {
+            background: rgba(255, 255, 255, 0.04);
+        }
     </style>
 </head>
 <body>
@@ -56,7 +74,7 @@
             <h1>Semantic Fingerprint</h1>
             <h2 id="runIdHeader" class="text-muted" style="margin-top: -0.5rem;"></h2>
             <div class="nav-links">
-                <a href="/static/runs.html" class="btn btn-secondary">← Back to Runs</a>
+                <a href="/static/runs.html" class="btn btn-secondary">Back to Runs</a>
                 <a id="summaryLink" href="#" class="btn btn-secondary">View Summary</a>
             </div>
         </div>
@@ -113,11 +131,14 @@
 
         let fingerprintChart;
         let selectedClusterId = null;
+        let fingerprintPoints = [];
+        let currentRunId = null;
 
         window.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('token');
             const urlParams = new URLSearchParams(window.location.search);
             const runId = urlParams.get('run_id');
+            currentRunId = runId;
 
             const loadingEl = document.getElementById('loading');
             const contentEl = document.getElementById('fingerprintContent');
@@ -159,6 +180,7 @@
                 
                 loadingEl.classList.add('hidden');
                 contentEl.classList.remove('hidden');
+                fingerprintPoints = Array.isArray(data.embedding_2d) ? data.embedding_2d : [];
 
                 // Populate total peptides count
                 document.getElementById('totalPeptides').textContent = `${data.total_peptides} total peptides in run.`;
@@ -173,10 +195,10 @@
                     row.dataset.clusterId = cluster.id;
                     row.innerHTML = `
                         <td><span class="color-dot" style="background-color: ${CLUSTER_COLORS[cluster.id % CLUSTER_COLORS.length]}"></span>${cluster.id}</td>
-                        <td>${cluster.size ?? '—'}</td>
-                        <td>${cluster.mean_length ?? '—'}</td>
-                        <td>${cluster.mean_hydrophobicity ?? '—'}</td>
-                        <td>${cluster.mean_intensity != null ? cluster.mean_intensity.toExponential(2) : '—'}</td>
+                        <td>${cluster.size ?? '--'}</td>
+                        <td>${cluster.mean_length ?? '--'}</td>
+                        <td>${cluster.mean_hydrophobicity ?? '--'}</td>
+                        <td>${cluster.mean_intensity != null ? cluster.mean_intensity.toExponential(2) : '--'}</td>
                     `;
                     row.addEventListener('click', () => selectCluster(cluster, data.total_peptides));
                 });
@@ -279,15 +301,71 @@
                 panel.innerHTML = '';
                 return;
             }
-            const pct = totalPeptides > 0 ? `${((cluster.size / totalPeptides) * 100).toFixed(1)}%` : '—';
+            const pct = totalPeptides > 0 ? `${((cluster.size / totalPeptides) * 100).toFixed(1)}%` : '--';
+            const peptides = getClusterPeptides(cluster.id);
             panel.classList.remove('hidden');
             panel.innerHTML = `
                 <h4>Selected Cluster ${cluster.id}</h4>
-                <p>Size: ${cluster.size ?? '—'} (${pct} of peptides)</p>
-                <p>Mean length: ${cluster.mean_length ?? '—'}</p>
-                <p>Mean hydrophobicity: ${cluster.mean_hydrophobicity ?? '—'}</p>
-                <p>Mean intensity: ${cluster.mean_intensity != null ? cluster.mean_intensity.toExponential(2) : '—'}</p>
-                <p class="text-muted">Interpretation: Cluster ${cluster.id} appears ${cluster.mean_hydrophobicity > 0 ? 'more hydrophobic' : 'balanced'} with average length ${cluster.mean_length ?? '—'}.</p>
+                <p>Size: ${cluster.size ?? '--'} (${pct} of peptides)</p>
+                <p>Mean length: ${cluster.mean_length ?? '--'}</p>
+                <p>Mean hydrophobicity: ${cluster.mean_hydrophobicity ?? '--'}</p>
+                <p>Mean intensity: ${cluster.mean_intensity != null ? cluster.mean_intensity.toExponential(2) : '--'}</p>
+                <p class="text-muted">Interpretation: Cluster ${cluster.id} appears ${cluster.mean_hydrophobicity > 0 ? 'more hydrophobic' : 'balanced'} with average length ${cluster.mean_length ?? '--'}.</p>
+                <div class="cluster-peptides">
+                    <h4 style="margin-bottom: 0.4rem;">Peptides in this cluster</h4>
+                    ${peptides.length ? renderPeptideTable(peptides) : `<div class="text-muted-block">No peptide identifiers available for this cluster.</div>`}
+                </div>
+            `;
+        }
+
+        function getClusterPeptides(clusterId) {
+            if (!Array.isArray(fingerprintPoints)) return [];
+            return fingerprintPoints
+                .filter(p => p && p.cluster_id === clusterId && (p.feature_id || p.sequence || p.featureId || p.feature))
+                .map(p => ({
+                    feature_id: p.feature_id || p.featureId || p.feature || null,
+                    sequence: p.sequence || p.seq || null,
+                    length: p.length,
+                    hydrophobicity: p.hydrophobicity,
+                    intensity: p.intensity
+                }));
+        }
+
+        function renderPeptideTable(peptides) {
+            const rows = peptides.map(p => {
+                const featureId = p.feature_id || '';
+                const sequence = p.sequence || 'Unknown';
+                const length = p.length ?? '--';
+                const hydro = p.hydrophobicity ?? '--';
+                const intensity = p.intensity != null ? (typeof p.intensity === 'number' && p.intensity.toExponential ? p.intensity.toExponential(2) : p.intensity) : '--';
+                const link = featureId ? `/static/search.html?run_id=${encodeURIComponent(currentRunId || '')}&feature_id=${encodeURIComponent(featureId)}` : null;
+                const sequenceCell = link ? `<a href="${link}" class="btn btn-secondary" style="padding: 0.3rem 0.55rem; font-size: 0.85rem;">${sequence}</a>` : sequence;
+                return `
+                    <tr>
+                        <td>${sequenceCell}</td>
+                        <td>${featureId || '--'}</td>
+                        <td>${length}</td>
+                        <td>${hydro}</td>
+                        <td>${intensity}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            return `
+                <div style="overflow-x: auto;">
+                    <table class="cluster-peptide-table">
+                        <thead>
+                            <tr>
+                                <th>Sequence</th>
+                                <th>Feature ID</th>
+                                <th>Length</th>
+                                <th>Hydro.</th>
+                                <th>Intensity</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
             `;
         }
     </script>

@@ -199,3 +199,49 @@
 - New programmatic upload endpoint POST /api/runs (supports auto_embed) using existing pipeline; validates ownership and features.
 - CLI scripts/upload_run.py posts runs with features JSON and optional auto-embed using API_TOKEN or --token.
 - Tests (tests/test_api_tokens_and_upload.py) cover token creation response, API token auth for /api/runs, and feature validation.
+## 2025-12-01 – UX.C1 Run List Refactor
+- Primary actions (Dashboard, Summary, Search) remain visible per run.
+- Secondary/maintenance actions (Fingerprint, Re-embed, Delete) moved into a "More..." dropdown with keyboard + click closing logic.
+- No backend changes; behavior preserved. Front-end only.
+---------------------------------------------------------
+## 2025-12-02 - UX.H2 Cross-Contextual Search Linking
+- Dashboard and fingerprint peptide entries now link to search.html with run_id and feature_id prefilled.
+- search.html auto-selects run/peptide from query params, auto-runs neighbor search, and shows a context banner; manual selection still works.
+- Front-end only; no backend routes or schemas changed.
+---------------------------------------------------------
+## 2025-12-02 - UX.H3 Post-Upload Funnel
+- Upload page now shows a guided success panel with run_id, rows ingested, background embedding note, and direct links to Run Dashboard and My Runs.
+- Errors are shown inline without navigation; form stays usable; no backend changes.
+## 2025-12-02 - Explanation View JS Cleanup
+- Removed stray diff markers in static/explain.html (loadNeighbors, loadExplanation, init); JavaScript now valid and behavior unchanged.
+- search.html left untouched; no backend changes.
+---------------------------------------------------------
+## 2025-12-01 – UX Deep Linking & Logging Middleware
+
+- Refined the runs list UI (static/runs.html) so primary actions (Dashboard, Summary, Search) remain visible while secondary actions (Fingerprint, Re-embed, Delete) are consolidated into a “More…” dropdown, reducing clutter and making the main workflow obvious.
+- Added cross-context deep linking: top peptides in simple_dashboard.html and cluster drilldown peptides in fingerprint.html now link directly into search.html with run_id/feature_id pre-populated and the similarity search + explanation auto-run.
+- Upgraded the upload flow (static/upload.html) to show a guided success funnel after POST /upload, including run ID, rows ingested, and clear CTAs to “Open Run Dashboard” and “Go to My Runs,” plus inline error cards on failure without leaving the page.
+- Introduced a dedicated peptide explanation view (static/explain.html) that is deep-linkable via ?run_id=...&feature_id=..., fetches neighbors and /peptide/explain, and presents an “AI insight sheet” with sequence, properties, neighbors, and a Gemini-labeled explanation.
+- Implemented request/response logging middleware in app.py that logs method, path, query, status, latency_ms, correlation_id, and best-effort user identifier; correlation IDs are sourced from X-Correlation-ID/X-Request-ID when provided or generated via UUID, attached to request.state and echoed in the response headers.
+---------------------------------------------------------
+## 2025-12-02 - Tiny UX Encoding/Copy Polish
+- Cleaned mojibake across runs.html, fingerprint.html, and search.html: credits badge defaults now read "Credits: 0", partial-embedding hint text is readable, Back to Runs button text fixed, and the full explanation link arrow renders correctly.
+- Left all logic and endpoints unchanged; edits were limited to static copy/encoding fixes.
+---------------------------------------------------------
+## 2025-12-02 - DB Backend Config Scaffolding
+- Added DB_BACKEND/DATABASE_URL/USERS_DATABASE_URL configuration in db.py with defaults for SQLite; non-sqlite backends raise a clear error placeholder.
+- Centralized DB path helpers (get_db_path, get_users_db_path) so SQLite paths are no longer hard-coded; user credits now use the resolved users DB path.
+- Observable behavior remains SQLite-by-default; Postgres can be wired later without touching routes.
+---------------------------------------------------------
+## 2025-12-02 – DB backend prep for Postgres
+
+- Introduced DB_BACKEND, DATABASE_URL, and USERS_DATABASE_URL configuration in db.py, defaulting to the existing sqlite behavior.
+- Updated get_db_connection(...) so sqlite is the explicit default and other backends raise a clear NotImplementedError until implemented.
+- Removed hard-coded "data/users.db" in get_user_credits(...) and replaced it with a configurable helper (_get_users_db_path) that still defaults to the legacy path for sqlite.
+- This establishes a single configuration point for the main and user/credits databases, making a future Postgres migration a targeted change instead of a codebase-wide search/rewrite.
+---------------------------------------------------------
+## 2025-12-02 – Credits UI (monetization surface)
+
+- Made the credits badge on the My Runs page clickable and keyboard-accessible.
+- Added a modal showing the current balance from /runs and explaining that uploads and AI features consume credits; includes a "Coming soon" note for upgrade plans.
+- No backend or billing changes; front-end-only monetization surface.

@@ -16,6 +16,8 @@ import pandas as pd
 import numpy as np
 import asyncio
 import random
+import time
+import uuid
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
@@ -40,6 +42,8 @@ from auth import current_active_user, current_active_user_or_token, User
 import config
 
 LOGGER = logging.getLogger(__name__)
+REQUEST_LOGGER = logging.getLogger("request_logger")
+REQUEST_LOGGER.setLevel(logging.getLevelName(config.LOG_LEVEL))
 
 # --- Configuration ---
 DATA_DIR = config.DATA_DIR
@@ -54,6 +58,56 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def _get_user_identifier(request: Request) -> str:
+    """Best-effort extraction of a user identifier for logging."""
+    user = getattr(request.state, "user", None)
+    if user is None:
+        return "unknown"
+    return getattr(user, "email", None) or str(getattr(user, "id", "unknown"))
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    correlation_id = (
+        request.headers.get("X-Correlation-ID")
+        or request.headers.get("X-Request-ID")
+        or str(uuid.uuid4())
+    )
+    request.state.correlation_id = correlation_id
+
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        latency_ms = round((time.perf_counter() - start) * 1000, 2)
+        payload = {
+            "event": "request_log",
+            "correlation_id": correlation_id,
+            "method": request.method,
+            "path": request.url.path,
+            "query": str(request.url.query),
+            "status": getattr(exc, "status_code", 500),
+            "latency_ms": latency_ms,
+            "user": _get_user_identifier(request),
+            "error": str(exc),
+        }
+        REQUEST_LOGGER.exception(json.dumps(payload))
+        raise
+
+    latency_ms = round((time.perf_counter() - start) * 1000, 2)
+    response.headers["X-Correlation-ID"] = correlation_id
+    payload = {
+        "event": "request_log",
+        "correlation_id": correlation_id,
+        "method": request.method,
+        "path": request.url.path,
+        "query": str(request.url.query),
+        "status": response.status_code,
+        "latency_ms": latency_ms,
+        "user": _get_user_identifier(request),
+    }
+    REQUEST_LOGGER.info(json.dumps(payload))
+    return response
 
 @app.on_event("startup")
 async def on_startup():

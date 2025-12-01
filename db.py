@@ -9,8 +9,26 @@ import models
 # --- Configuration ---
 SCHEMA_VERSION = "immuno-0.1.0"
 
+DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+USERS_DATABASE_URL = os.getenv("USERS_DATABASE_URL", "").strip()
+DEFAULT_DATA_DIR = os.getenv("DATA_DIR", "data")
+
 def get_db_path(data_dir: str) -> str:
+    """Resolve the primary database location for the active backend (SQLite default)."""
+    if DB_BACKEND != "sqlite":
+        raise ValueError(f"DB_BACKEND '{DB_BACKEND}' is not supported yet. Set DB_BACKEND=sqlite until Postgres is implemented.")
     return os.path.join(data_dir, "immuno.sqlite")
+
+def get_users_db_path(data_dir: Optional[str] = None) -> str:
+    """
+    Resolve the user/credits database path. Defaults to SQLite in DATA_DIR/users.db
+    but can be overridden via USERS_DATABASE_URL for future backends.
+    """
+    if USERS_DATABASE_URL:
+        return USERS_DATABASE_URL
+    base_dir = data_dir or DEFAULT_DATA_DIR
+    return os.path.join(base_dir, "users.db")
 
 def get_db_connection(data_dir: str) -> sqlite3.Connection:
     """Establishes a connection to the SQLite database and ensures tables exist."""
@@ -266,7 +284,7 @@ def update_user_credits(con: sqlite3.Connection, user_id: str, amount: int):
     """
     try:
         # Connect directly to the user database
-        with sqlite3.connect("data/users.db") as u_con:
+        with sqlite3.connect(get_users_db_path()) as u_con:
             u_con.execute("UPDATE user SET credits = credits + ? WHERE id = ?", (amount, user_id))
             u_con.commit()
     except Exception as e:
@@ -279,7 +297,7 @@ def get_user_credits(con: sqlite3.Connection, user_id: str) -> int:
     Note: This function establishes its own connection to users.db.
     """
     try:
-        with sqlite3.connect("data/users.db") as u_con:
+        with sqlite3.connect(get_users_db_path()) as u_con:
             cur = u_con.cursor()
             cur.execute("SELECT credits FROM user WHERE id = ?", (user_id,))
             row = cur.fetchone()

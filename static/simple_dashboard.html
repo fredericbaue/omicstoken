@@ -147,7 +147,9 @@
                     <tbody>
                         ${features.slice(0, 10).map(f => `
                             <tr>
-                                <td style="font-family:monospace; color: var(--accent-color);">${f.sequence}</td>
+                                <td style="font-family:monospace;">
+                                    ${f.feature_id ? `<a class="btn btn-secondary" style="padding: 0.35rem 0.6rem; font-size: 0.85rem;" href="/static/search.html?run_id=${encodeURIComponent(apiData.run_id)}&feature_id=${encodeURIComponent(f.feature_id)}" title="Open in similarity search">${f.sequence}</a>` : `<span style="color: var(--accent-color);">${f.sequence}</span>`}
+                                </td>
                                 <td>${f.intensity.toExponential(2)}</td>
                                 <td>${f.properties.length}</td>
                                 <td>${f.properties.hydrophobicity}</td>

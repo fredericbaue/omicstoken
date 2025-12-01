@@ -12,9 +12,42 @@
         .badge.ready { background: #1b5e20; color: #e8f5e9; }
         .badge.processing { background: #f57f17; color: #fffde7; }
         .badge.not-embedded { background: #424242; color: #f5f5f5; }
-        .action-groups { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
-        .action-group { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
         .hint { margin-top: 0.5rem; color: var(--text-muted); font-size: 0.9rem; }
+        .actions-row { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 1rem; }
+        .primary-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .dropdown-wrapper { position: relative; }
+        .more-button { padding: 0.6rem 0.85rem; min-width: 90px; }
+        .actions-dropdown { position: absolute; right: 0; top: calc(100% + 0.35rem); background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: var(--shadow); padding: 0.3rem; min-width: 190px; display: none; z-index: 5; }
+        .actions-dropdown.open { display: block; }
+        .actions-dropdown a, .actions-dropdown button { width: 100%; text-align: left; background: transparent; border: none; color: var(--text-primary); padding: 0.65rem 0.85rem; border-radius: 8px; font-size: 0.95rem; cursor: pointer; }
+        .actions-dropdown a:hover, .actions-dropdown button:hover { background: rgba(255, 255, 255, 0.06); }
+        .actions-dropdown .danger { color: var(--danger-color); }
+        .btn-ghost { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .btn-ghost:hover { background: rgba(255, 255, 255, 0.1); }
+        .badge-credits { cursor: pointer; }
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .modal-backdrop.active { display: flex; }
+        .modal-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 1.25rem;
+            max-width: 420px;
+            width: 90%;
+            color: var(--text-primary);
+        }
+        .modal-card h3 { margin-top: 0; margin-bottom: 0.5rem; }
+        .modal-card p { margin: 0.35rem 0; color: var(--text-muted); }
+        .modal-actions { margin-top: 1rem; text-align: right; }
     </style>
 </head>
 <body>
@@ -22,7 +55,7 @@
         <div class="header flex-between">
             <h1>My Runs</h1>
             <div class="flex" style="gap: 1rem; align-items: center;">
-                <span id="credits-display" class="badge badge-credits">💳 0 Credits</span>
+                <span id="credits-display" class="badge badge-credits" role="button" tabindex="0">Credits: 0</span>
                 <a href="/static/upload.html" class="btn btn-primary">Upload New Data</a>
                 <a href="/static/compare.html" class="btn btn-secondary">Compare Runs</a>
             </div>
@@ -46,6 +79,11 @@
     <script>
         const searchInput = document.getElementById('run-search');
         const statusFilter = document.getElementById('status-filter');
+        const creditsDisplay = document.getElementById('credits-display');
+        const creditsModalBackdrop = document.getElementById('credits-modal-backdrop');
+        const creditsModalBalance = document.getElementById('credits-modal-balance');
+        const creditsModalClose = document.getElementById('credits-modal-close');
+        let latestUserCredits = 0;
 
         window.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('token');
@@ -72,8 +110,9 @@
                 const data = await response.json();
                 const runs = data.runs;
                 const userCredits = data.user_credits;
+                latestUserCredits = userCredits || 0;
 
-                document.getElementById('credits-display').textContent = `💳 ${userCredits} Credits`;
+                document.getElementById('credits-display').textContent = 'Credits: ' + userCredits;
 
                 if (runs.length === 0) {
                     loadingEl.textContent = 'No runs found. Try uploading some data!';
@@ -105,25 +144,26 @@
                                 <span>Instrument: <strong>${run.instrument || 'N/A'}</strong></span>
                             </div>
                             ${renderHint(run)}
-                            <div class="action-groups">
-                                <div class="action-group">
-                                    <span class="text-sm text-muted">Explore:</span>
-                                    <a href="/static/summary.html?run_id=${run.run_id}" class="btn btn-secondary">Summary</a>
+                            <div class="actions-row" role="group" aria-label="Run actions">
+                                <div class="primary-actions" aria-label="Primary actions">
                                     <a href="/static/simple_dashboard.html?run_id=${run.run_id}" class="btn btn-secondary">Dashboard</a>
+                                    <a href="/static/summary.html?run_id=${run.run_id}" class="btn btn-secondary">Summary</a>
                                     <a href="/static/search.html?run_id=${run.run_id}" class="btn btn-secondary">Search</a>
                                 </div>
-                                <div class="action-group">
-                                    <span class="text-sm text-muted">Maintenance:</span>
-                                    <a href="/static/fingerprint.html?run_id=${run.run_id}" class="btn btn-secondary">Fingerprint</a>
-                                    <button onclick="reEmbedRun('${run.run_id}')" class="btn btn-warning">Re-embed</button>
-                                </div>
-                                <div class="action-group">
-                                    <span class="text-sm text-muted">Danger:</span>
-                                    <button onclick="deleteRun('${run.run_id}')" class="btn btn-danger">Delete</button>
+                                <div class="dropdown-wrapper">
+                                    <button class="btn btn-secondary btn-ghost more-button" aria-haspopup="true" aria-expanded="false" aria-controls="actions-menu-${run.run_id}" title="More actions">
+                                        More...
+                                    </button>
+                                    <div class="actions-dropdown" id="actions-menu-${run.run_id}" role="menu">
+                                        <a href="/static/fingerprint.html?run_id=${run.run_id}" class="dropdown-item" role="menuitem" data-menu-item>Fingerprint</a>
+                                        <button class="dropdown-item btn-warning" role="menuitem" data-menu-item onclick="reEmbedRun('${run.run_id}')">Re-embed</button>
+                                        <button class="dropdown-item danger" role="menuitem" data-menu-item onclick="deleteRun('${run.run_id}')">Delete</button>
+                                    </div>
                                 </div>
                             </div>
                         `;
                         runsList.appendChild(card);
+                        attachDropdownHandlers(card);
                     });
                     applyFilters();
                 }
@@ -147,7 +187,7 @@
                 return `<div class="hint">No features detected. Check your upload format or input file.</div>`;
             }
             if (run.n_embeddings > 0 && run.n_embeddings < run.n_features) {
-                return `<div class="hint">⚠ Some peptides aren’t embedded yet. Click Re-embed to complete this run.</div>`;
+                return `<div class="hint">Some peptides aren't embedded yet. Click Re-embed to complete this run.</div>`;
             }
             if (run.n_embeddings === 0) {
                 return `<div class="hint">No embeddings generated yet. Click Re-embed to start embedding.</div>`;
@@ -157,6 +197,70 @@
 
         searchInput.addEventListener('input', applyFilters);
         statusFilter.addEventListener('change', applyFilters);
+
+        function closeAllDropdowns() {
+            document.querySelectorAll('.actions-dropdown.open').forEach(menu => {
+                menu.classList.remove('open');
+                const toggle = menu.parentElement.querySelector('.more-button');
+                if (toggle) {
+                    toggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+
+        function toggleDropdown(button) {
+            const menu = button.nextElementSibling;
+            const isOpen = menu.classList.contains('open');
+            closeAllDropdowns();
+            if (!isOpen) {
+                menu.classList.add('open');
+                button.setAttribute('aria-expanded', 'true');
+                const firstItem = menu.querySelector('[data-menu-item]');
+                if (firstItem) {
+                    firstItem.focus();
+                }
+            }
+        }
+
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('.dropdown-wrapper')) {
+                closeAllDropdowns();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeAllDropdowns();
+            }
+        });
+
+        function attachDropdownHandlers(card) {
+            const moreButton = card.querySelector('.more-button');
+            const menuItems = card.querySelectorAll('.actions-dropdown [data-menu-item]');
+            if (moreButton) {
+                moreButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    toggleDropdown(moreButton);
+                });
+                moreButton.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        toggleDropdown(moreButton);
+                    }
+                    if (event.key === 'Escape') {
+                        closeAllDropdowns();
+                    }
+                });
+            }
+            menuItems.forEach(item => {
+                item.addEventListener('click', () => closeAllDropdowns());
+                item.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        closeAllDropdowns();
+                    }
+                });
+            });
+        }
 
         function applyFilters() {
             const term = (searchInput.value || '').toLowerCase();
@@ -178,7 +282,40 @@
             });
         }
 
+        function openCreditsModal() {
+            creditsModalBalance.textContent = `You currently have ${latestUserCredits} credits.`;
+            creditsModalBackdrop.classList.add('active');
+            creditsModalBackdrop.setAttribute('aria-hidden', 'false');
+            creditsModalClose.focus();
+        }
+
+        function closeCreditsModal() {
+            creditsModalBackdrop.classList.remove('active');
+            creditsModalBackdrop.setAttribute('aria-hidden', 'true');
+            creditsDisplay.focus();
+        }
+
+        creditsDisplay.addEventListener('click', openCreditsModal);
+        creditsDisplay.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openCreditsModal();
+            }
+        });
+        creditsModalClose.addEventListener('click', closeCreditsModal);
+        creditsModalBackdrop.addEventListener('click', (event) => {
+            if (event.target === creditsModalBackdrop) {
+                closeCreditsModal();
+            }
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && creditsModalBackdrop.classList.contains('active')) {
+                closeCreditsModal();
+            }
+        });
+
         async function reEmbedRun(runId) {
+            closeAllDropdowns();
             const card = document.getElementById(`run-card-${runId}`);
             const button = card.querySelector('.btn-warning');
             const originalText = button.innerText;
@@ -212,6 +349,7 @@
         }
 
         async function deleteRun(runId) {
+            closeAllDropdowns();
             if (!confirm(`Are you sure you want to delete run "${runId}"?\nThis action cannot be undone.`)) {
                 return;
             }
@@ -235,5 +373,17 @@
             }
         }
     </script>
+    <div id="credits-modal-backdrop" class="modal-backdrop" aria-hidden="true">
+        <div id="credits-modal" class="modal-card" role="dialog" aria-modal="true" aria-labelledby="credits-modal-title">
+            <h3 id="credits-modal-title">Usage & Credits</h3>
+            <p id="credits-modal-balance" class="text-muted">You currently have -- credits.</p>
+            <p>Uploads and AI-powered features (summaries, explanations, advanced search) consume credits.</p>
+            <p>When your balance is low, some features may be limited.</p>
+            <p style="font-style: italic;">Coming soon: upgrade plans for higher-throughput labs and teams.</p>
+            <div class="modal-actions">
+                <button id="credits-modal-close" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

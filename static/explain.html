@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Peptide Explanation | Immuno-Engine</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { margin: 0; }
+    .page-grid { display: grid; gap: 1.5rem; max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+    .card-section { background: rgba(15, 23, 42, 0.7); border-radius: 14px; border: 1px solid rgba(255,255,255,0.06); padding: 1.5rem; box-shadow: 0 12px 30px rgba(0,0,0,0.45); }
+    .header-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); font-size: 0.9rem; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .label { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.25rem; }
+    .value { font-weight: 600; color: var(--text-primary); }
+    .properties-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; }
+    .prop-card { padding: 0.75rem 0.9rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    thead th { text-align: left; color: var(--text-secondary); font-weight: 600; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+    .note { color: var(--text-secondary); font-size: 0.95rem; }
+    .explanation-box { margin-top: 0.75rem; padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); max-height: 320px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5; }
+    .status { font-size: 0.95rem; color: var(--text-secondary); }
+    .status.ok { color: var(--success-color); }
+    .status.err { color: var(--danger-color); }
+    @media (max-width: 720px) {
+      .page-grid { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" style="padding: 1.5rem 0;">
+    <div class="page-grid">
+      <div class="header-row">
+        <div>
+          <h1 style="margin-bottom: 0.25rem;">Peptide Explanation</h1>
+          <div class="note">Deep-linked view for peptide insights and neighbors.</div>
+        </div>
+        <div class="flex" style="gap: 0.5rem; flex-wrap: wrap;">
+          <a href="/static/search.html" class="btn btn-secondary">Back to Search</a>
+          <a href="/static/runs.html" class="btn btn-primary">My Runs</a>
+        </div>
+      </div>
+
+      <div id="missingParams" class="card-section" style="display:none;">
+        <div class="note">Provide <code>?run_id=...&feature_id=...</code> to view a peptide explanation.</div>
+      </div>
+
+      <div id="content" style="display:none;">
+        <div class="card-section">
+          <div class="header-row" style="align-items: flex-start;">
+            <div style="flex: 1;">
+              <div class="label">Run ID</div>
+              <div class="value" id="runIdVal">--</div>
+              <div style="margin-top: 0.75rem;">
+                <div class="label">Feature ID</div>
+                <div class="value" id="featureIdVal">--</div>
+              </div>
+            </div>
+            <div style="flex: 1;">
+              <div class="label">Peptide sequence</div>
+              <div class="value mono" id="sequenceVal" style="font-size: 1.1rem; word-break: break-word;">--</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 200px;">
+              <span class="pill"><span class="label" style="margin:0;">Run</span><span class="value" id="runPill">--</span></span>
+              <span class="pill"><span class="label" style="margin:0;">Feature</span><span class="value" id="featurePill">--</span></span>
+            </div>
+          </div>
+          <div class="properties-grid" style="margin-top: 1.25rem;">
+            <div class="prop-card">
+              <div class="label">Length</div>
+              <div class="value" id="propLength">--</div>
+            </div>
+            <div class="prop-card">
+              <div class="label">Charge</div>
+              <div class="value" id="propCharge">--</div>
+            </div>
+            <div class="prop-card">
+              <div class="label">Hydrophobicity</div>
+              <div class="value" id="propHydro">--</div>
+            </div>
+            <div class="prop-card">
+              <div class="label">Intensity</div>
+              <div class="value" id="propIntensity">--</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-section">
+          <div class="header-row" style="margin-bottom: 0.5rem;">
+            <h2 style="margin: 0;">Top neighbors</h2>
+            <div class="note" id="neighborsStatus"></div>
+          </div>
+          <div id="neighborsContainer"></div>
+        </div>
+
+        <div class="card-section">
+          <div class="header-row" style="margin-bottom: 0.5rem;">
+            <h2 style="margin: 0;">AI explanation</h2>
+            <div class="note">Powered by Gemini</div>
+          </div>
+          <div id="explanationBox" class="explanation-box">Loading explanation...</div>
+          <div class="status" id="explainStatus"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const runId = params.get("run_id");
+    const featureId = params.get("feature_id");
+    const sequenceParam = params.get("sequence");
+    const API_URL = window.location.origin;
+
+    const missingParamsEl = document.getElementById("missingParams");
+    const contentEl = document.getElementById("content");
+    const runIdVal = document.getElementById("runIdVal");
+    const featureIdVal = document.getElementById("featureIdVal");
+    const sequenceVal = document.getElementById("sequenceVal");
+    const runPill = document.getElementById("runPill");
+    const featurePill = document.getElementById("featurePill");
+    const propLength = document.getElementById("propLength");
+    const propCharge = document.getElementById("propCharge");
+    const propHydro = document.getElementById("propHydro");
+    const propIntensity = document.getElementById("propIntensity");
+    const neighborsContainer = document.getElementById("neighborsContainer");
+    const neighborsStatus = document.getElementById("neighborsStatus");
+    const explanationBox = document.getElementById("explanationBox");
+    const explainStatus = document.getElementById("explainStatus");
+
+    function getToken() {
+      return window.localStorage.getItem("token") || "";
+    }
+
+    function authHeaders() {
+      const token = getToken();
+      const headers = {};
+      if (token) headers["Authorization"] = "Bearer " + token;
+      return headers;
+    }
+
+    function setProperties(props) {
+      propLength.textContent = props.length ?? "--";
+      propCharge.textContent = props.charge ?? "--";
+      propHydro.textContent = props.hydrophobicity ?? "--";
+      propIntensity.textContent = props.intensity ?? "--";
+    }
+
+    function renderNeighbors(neighbors) {
+      if (!neighbors || !neighbors.length) {
+        neighborsContainer.innerHTML = '<div class="note">No neighbors found for this peptide.</div>';
+        neighborsStatus.textContent = "";
+        return;
+      }
+
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      thead.innerHTML = "<tr><th>Sequence</th><th>Similarity</th><th>Intensity</th></tr>";
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      neighbors.forEach((n) => {
+        const tr = document.createElement("tr");
+        const similarityVal = (n.similarity ?? n.similarity_score ?? 0);
+        tr.innerHTML = `
+          <td class="mono">${n.peptide_sequence || n.sequence || "--"}</td>
+          <td>${similarityVal.toFixed ? similarityVal.toFixed(3) : similarityVal}</td>
+          <td>${n.intensity ?? "--"}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      neighborsContainer.innerHTML = "";
+      neighborsContainer.appendChild(table);
+      neighborsStatus.textContent = `${neighbors.length} neighbors`;
+    }
+
+    async function loadNeighbors() {
+      neighborsStatus.textContent = "Loading neighbors...";
+      neighborsContainer.innerHTML = "";
+      try {
+        const res = await fetch(
+          `${API_URL}/peptide/search/${encodeURIComponent(runId)}/${encodeURIComponent(featureId)}?k=10`,
+          { headers: { ...authHeaders() } }
+        );
+        const text = await res.text();
+        let data = null;
+        try { data = JSON.parse(text); } catch (_) {}
+        if (!res.ok) {
+          throw new Error((data && data.detail) || text || "Neighbor request failed.");
+        }
+        const neighbors = data && Array.isArray(data.neighbors) ? data.neighbors : [];
+        renderNeighbors(neighbors);
+      } catch (err) {
+        neighborsStatus.textContent = "";
+        neighborsContainer.innerHTML = `<div class="status err">Failed to load neighbors: ${err.message}</div>`;
+      }
+    }
+
+    async function loadExplanation() {
+      explainStatus.textContent = "Loading explanation...";
+      explanationBox.textContent = "Requesting explanation...";
+      try {
+        const res = await fetch(
+          `${API_URL}/peptide/explain/${encodeURIComponent(runId)}/${encodeURIComponent(featureId)}`,
+          { headers: { ...authHeaders() } }
+        );
+        const text = await res.text();
+        let data = null;
+        try { data = JSON.parse(text); } catch (_) {}
+        if (!res.ok) {
+          throw new Error((data && data.detail) || text || "Explanation request failed.");
+        }
+
+        const seq = data?.peptide_sequence || data?.sequence || sequenceParam || "--";
+        sequenceVal.textContent = seq;
+        const props = data?.properties || data || {};
+        setProperties({
+          length: props.length,
+          charge: props.charge,
+          hydrophobicity: props.hydrophobicity,
+          intensity: props.intensity,
+        });
+        explanationBox.textContent = data.explanation || data.summary_text || JSON.stringify(data, null, 2);
+        explainStatus.textContent = "";
+        explainStatus.className = "status";
+      } catch (err) {
+        explanationBox.textContent = `Failed to load explanation: ${err.message}`;
+        explainStatus.textContent = "Explanation unavailable.";
+        explainStatus.className = "status err";
+      }
+    }
+
+    function init() {
+      if (!runId || !featureId) {
+        missingParamsEl.style.display = "block";
+        contentEl.style.display = "none";
+        return;
+      }
+
+      const token = getToken();
+      if (!token) {
+        missingParamsEl.style.display = "block";
+        missingParamsEl.innerHTML =
+          '<div class="status err">You must log in first (via <a href="/static/login.html">login.html</a>) to view explanations.</div>';
+        return;
+      }
+
+      contentEl.style.display = "block";
+      runIdVal.textContent = runId;
+      featureIdVal.textContent = featureId;
+      runPill.textContent = runId;
+      featurePill.textContent = featureId;
+      if (sequenceParam) sequenceVal.textContent = sequenceParam;
+
+      loadNeighbors();
+      loadExplanation();
+    }
+
+    init();
+  </script>
+</body>
+</html>

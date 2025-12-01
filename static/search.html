@@ -147,6 +147,18 @@
       font-size: 11px;
       opacity: 0.85;
     }
+    .context-banner {
+      margin: 8px 0 12px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      background: #0b1120;
+      font-size: 12px;
+    }
+    .auto-highlight {
+      outline: 1px solid #38bdf8;
+      background: #0b1120;
+    }
 
     code {
       font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -171,6 +183,8 @@
       <a href="/docs" target="_blank">API Docs</a>
     </nav>
   </header>
+
+  <div id="contextBanner" class="context-banner" style="display:none;"></div>
 
   <main>
     <!-- LEFT: Peptide table -->
@@ -205,6 +219,7 @@
       <div class="explanation" id="explanationBox">
         When you click a peptide, this will show the AI explanation from <code>/peptide/explain/{run_id}/{feature_id}</code>.
       </div>
+      <div id="fullExplainLink" style="margin-top:6px; font-size:12px;"></div>
 
       <div class="status" id="explainStatus"></div>
     </section>
@@ -212,6 +227,11 @@
 
   <script>
     const API_URL = "http://127.0.0.1:8080";
+    const urlParams = new URLSearchParams(window.location.search);
+    const runIdParam = urlParams.get("run_id");
+    const featureIdParam = urlParams.get("feature_id");
+    const sequenceParam = urlParams.get("sequence");
+    let autoSearchDone = false;
 
     const runLabelEl = document.getElementById("runLabel");
     const featureLabelEl = document.getElementById("featureLabel");
@@ -220,6 +240,8 @@
     const neighborsBoxEl = document.getElementById("neighborsBox");
     const explanationBoxEl = document.getElementById("explanationBox");
     const explainStatusEl = document.getElementById("explainStatus");
+    const contextBannerEl = document.getElementById("contextBanner");
+    const fullExplainLinkEl = document.getElementById("fullExplainLink");
 
     function setStatus(el, msg, type = "info") {
       if (!el) return;
@@ -229,6 +251,19 @@
       span.className = type;
       span.textContent = msg;
       el.appendChild(span);
+    }
+
+    function setContextBanner(msg, type = "info") {
+      if (!contextBannerEl) return;
+      if (!msg) {
+        contextBannerEl.style.display = "none";
+        contextBannerEl.textContent = "";
+        return;
+      }
+      contextBannerEl.style.display = "block";
+      contextBannerEl.textContent = msg;
+      contextBannerEl.style.color =
+        type === "ok" ? "#4ade80" : type === "err" ? "#f97316" : "#e5e7eb";
     }
 
     function getToken() {
@@ -243,14 +278,14 @@
     }
 
     function getRunIdFromQuery() {
-      const params = new URLSearchParams(window.location.search);
-      return params.get("run_id");
+      return runIdParam;
     }
 
     async function loadDashboardData(runId) {
       if (!runId) {
         setStatus(peptideStatusEl, "No run_id provided in query (?run_id=...).", "err");
         peptideTableEl.innerHTML = "";
+        setContextBanner("", "info");
         return;
       }
 
@@ -258,10 +293,11 @@
       if (!token) {
         setStatus(peptideStatusEl, "You must log in first (via login.html).", "err");
         peptideTableEl.innerHTML = "";
+        setContextBanner("", "info");
         return;
       }
 
-      setStatus(peptideStatusEl, "Loading peptides…", "info");
+      setStatus(peptideStatusEl, "Loading peptides...", "info");
       peptideTableEl.innerHTML = "";
 
       try {
@@ -280,6 +316,7 @@
           peptideTableEl.innerHTML =
             "<div style='padding:6px 8px; font-size:12px; opacity:0.7;'>No peptides found for this run.</div>";
           setStatus(peptideStatusEl, "", "info");
+          setContextBanner("", "info");
           return;
         }
 
@@ -290,6 +327,7 @@
         table.appendChild(thead);
 
         const tbody = document.createElement("tbody");
+        let autoTarget = null;
 
         items.forEach((row) => {
           const props = row.properties || {};
@@ -302,6 +340,10 @@
             <td>${props.charge ?? ""}</td>
             <td>${props.hydrophobicity ?? ""}</td>
           `;
+          if (featureIdParam && String(row.feature_id) === String(featureIdParam)) {
+            tr.classList.add("auto-highlight");
+            autoTarget = { row, element: tr };
+          }
           tr.addEventListener("click", () => {
             onSelectPeptide(runId, row.feature_id, row.sequence);
           });
@@ -312,18 +354,40 @@
         peptideTableEl.innerHTML = "";
         peptideTableEl.appendChild(table);
         setStatus(peptideStatusEl, "Click a row to search for neighbors.", "ok");
+
+        if (featureIdParam && !autoSearchDone) {
+          if (autoTarget) {
+            setContextBanner(
+              `Showing neighbors for peptide ${autoTarget.row.sequence || autoTarget.row.feature_id} (Run ${runId}).`,
+              "ok"
+            );
+            autoSearchDone = true;
+            onSelectPeptide(runId, autoTarget.row.feature_id, autoTarget.row.sequence);
+          } else {
+            setContextBanner(
+              `Peptide ${featureIdParam} not found in run ${runId}. Please select a different peptide.`,
+              "err"
+            );
+            setStatus(peptideStatusEl, "Peptide not found; select another.", "err");
+          }
+        } else if (!featureIdParam) {
+          setContextBanner("");
+        }
       } catch (err) {
         console.error(err);
         peptideTableEl.innerHTML = "";
         setStatus(peptideStatusEl, "Failed to load peptides: " + err.message, "err");
+        setContextBanner("", "info");
       }
     }
 
     async function onSelectPeptide(runId, featureId, sequence) {
       featureLabelEl.textContent = `${featureId} (${sequence})`;
+      setContextBanner(`Showing neighbors for peptide ${sequence || featureId} (Run ${runId}).`, "ok");
       neighborsBoxEl.innerHTML =
-        "<div style='font-size:12px; opacity:0.7; padding:6px 8px;'>Searching neighbors…</div>";
-      explanationBoxEl.textContent = "Requesting explanation…";
+        "<div style='font-size:12px; opacity:0.7; padding:6px 8px;'>Searching neighbors...</div>";
+      explanationBoxEl.textContent = "Requesting explanation...";
+      if (fullExplainLinkEl) fullExplainLinkEl.innerHTML = "";
       setStatus(explainStatusEl, "", "info");
 
       const token = getToken();
@@ -385,6 +449,10 @@
             expData.explanation ||
             expData.summary_text ||
             JSON.stringify(expData, null, 2);
+          if (fullExplainLinkEl) {
+            const url = `/static/explain.html?run_id=${encodeURIComponent(runId)}&feature_id=${encodeURIComponent(featureId)}`;
+            fullExplainLinkEl.innerHTML = `<a href="${url}" style="color:#60a5fa; text-decoration:none;">Open full explanation view &rarr;</a>`;
+          }
           setStatus(explainStatusEl, "", "info");
         } catch (expErr) {
           console.error(expErr);

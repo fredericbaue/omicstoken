@@ -1,9 +1,7 @@
-# Codex Tasks – OmicsToken MVP Engineering Guide
-
-This file defines the tasks Codex should prioritize when generating or modifying
-code. It is ordered: MVP-critical tasks first, then structural tasks, then
-future enhancements. Codex must read this after codex_core_context.txt and
-codex_memory_log.md.
+# OmicsToken – Unified Engineering + UX + CTO Priority Task List
+# Version: 2025-12-02
+# This file consolidates MVP-Critical, Infrastructure, UX, and Productization tasks
+# into a single prioritized roadmap for Codex in VS Code.
 
 ======================================================================
 ## 🔥 0. Absolute Rule (Non-Negotiable)
@@ -13,82 +11,147 @@ Upload → Parse → Store Features → Embed → Store Embeddings → Rebuild I
 Search → Compare → Summarize → Export.
 
 All code changes must preserve this end-to-end flow.
+======================================================================
+
 
 ======================================================================
-## 1 MVP-Critical (Do These First)
-[x] 1 Fix & Harden Export Authentication
-- Ensure export_run.py uses valid Bearer tokens by default and clearly reports
-  401 errors and missing tokens.
-- Optionally add a local "demo token" path for offline demos that is safe but
-  convenient.
-- Guarantee that /export/embeddings/{run_id} consistently returns the canonical
-  OmicsToken v1 export payload for any run that has embeddings.
+## 🚨 P0 — CRITICAL FOUNDATION (Required for investors, labs, and scaling)
+======================================================================
 
-[x]  1.2 Harden FAISS Index Rebuild
-- Make search.rebuild_faiss_index safe and idempotent when called after each
-  embedding operation.
-- Ensure index rebuild cannot corrupt the index if interrupted.
-- Add basic error handling and logging when index rebuild fails so the demo
-  can degrade gracefully instead of crashing.
+[ ] P0.1 MIGRATE DATABASE TO POSTGRESQL
+     - Replace SQLite (immuno.sqlite + users.db) with PostgreSQL.
+     - Update DB connections, models, migrations, and thread safety.
+     - Ensure FAISS rebuild still works with new DB structure.
+     [x] Introduce DB_BACKEND config and configurable users DB path (first prep step).
 
-[x]  1.3 Stabilize ESM-2 Embedding Engine
-- Avoid repeated model reloads by ensuring get_model() uses a proper global cache.
-- Validate sequences early (strip/uppercase, non-empty) to minimize failed calls.
-- Add explicit tests that EMBEDDING_DIM == 320 and all stored embeddings match
-  this length.
+[ ] P0.2 CENTRALIZED LOGGING & TRACING
+     - Implement request/response logging middleware.
+     - Add correlation IDs and redact sensitive fields.
+     - Support pluggable log sinks (stdout for now; Sentry later).
 
+[ ] P0.3 LEGAL & COMPLIANCE FOUNDATION
+     - Add ToS, Privacy Policy, and Data Processing Policy placeholder files.
+     - Ensure UI links can reference these pages.
+     - Do NOT implement full compliance backend yet.
 
-[x]  1.4 Background Task & DB Safety
-- Verify that embed(run_id) and its DB access pattern are safe when called from
-  a threadpool.
-- Avoid DB connection reuse across threads; ensure each task uses its own
-  connection.
-- Ensure concurrent uploads/embeddings cannot corrupt the DB or index.
+[ ] P0.4 CLOUD FILE STORAGE (S3/Blob)
+     - Store raw uploads in cloud object storage instead of local disk.
+     - Integrate signed URLs for secure download.
+     - Maintain compatibility with existing parsing pipeline.
 
-[x]  1.5 Endpoint Robustness
-- Ensure all user-scoped routes enforce run ownership (current_active_user).
-- On errors, return clear HTTPException messages rather than crashing.
+[ ] P0.5 ADVANCED BACKGROUND JOB ENGINE
+     - Replace FastAPI threadpool with Celery/Redis Queue.
+     - Embed → Index rebuild → Summaries must be queued jobs.
+     - Ensure full reproducibility and crash recovery.
+
 
 ======================================================================
-[ ]  🧱 2. Structural Code Quality Tasks
+## 💎 P1 — UX/UI PHASE 2.1 (High-impact demo & scientist polish)
+# These tasks dramatically improve user experience without changing the backend.
+======================================================================
 
-[x]  2.1 Separate Legacy Tables From Current Logic
-- Clearly mark the old embeddings table in db.py as legacy.
-- Prefer peptide_embeddings for all new work.
-- Remove unused helper functions that reference obsolete tables or columns,
-  unless needed for migration.
+### CRITICAL UX (Clutter Reduction & Primary Flow Efficiency)
 
-[x] 2.2 Introduce a Formal Embedder Interface
-  - Add a BaseEmbedder class, then wrap ESM-2 inside it:
-    ```python
-    class BaseEmbedder:
-        def embed(self, sequence: str) -> np.ndarray:
-            ...
+[x] UX.C1 REFACTOR RUN LIST ACTIONS (static/runs.html)
+     - Consolidate Delete, Fingerprint, Re-embed into a single dropdown.
+     - Keep only “Dashboard”, “Summary”, “Search” as primary actions.
 
-[x] 2.3 Centralize Configuration & Embedder Selection
-  - Centralize model names/data dirs; add embedder factory selecting default Esm2.
-  - Keep ESM-2 as default; allow future swaps with validation/logging.
+[ ] UX.C2 SIMPLIFY STATUS LABELS (static/runs.html)
+     - Replace computeStatus logic with clearer statuses:
+       "Ready", "Processing", "Waiting for Embedding".
 
-[x] 2.4 Validate & Document Config Defaults
-  - Centralize config usage via config.py, document defaults and env overrides.
-  - Add sanity test to ensure default embedder selection and DATA_DIR creation work.
+### HIGH VALUE UX (Flow & Friction Removal)
 
-[x] 2.5 Logging Consistency & Centralization
-  - Add centralized logging config (level/format), ensure key pipeline steps log clearly without secrets, and add a logging sanity test.
+[ ] UX.H1 DRAG-AND-DROP UPLOAD (static/upload.html)
+     - Replace file input with a branded drag-and-drop upload zone.
+     - Add hover/focus visual feedback.
 
-[ ] 2.6 Add request/response logging middleware with redaction and correlation IDs
+[x] UX.H2 CROSS-CONTEXTUAL SEARCH LINKING
+     - Make peptides clickable everywhere:
+       Dashboard, Fingerprint, Compare.
+     - Clicking automatically loads search.html with run_id + feature_id selected.
+
+[x] UX.H3 POST-UPLOAD FUNNEL
+     - After upload → show success banner → link directly to Runs List.
+     - Remove friction returning to /runs.html.
+
+### MEDIUM UX (Trust & Polish)
+
+[ ] UX.M1 TRANSPARENT LLM SUMMARY (static/summary.html)
+     - Add "Powered by Gemini 2.5 Flash".
+     - Include collapsible <details> showing AI context input.
+
+[x] UX.M2 ACTIONABLE CREDITS DISPLAY (static/runs.html)
+     - Clicking Credits badge opens a tooltip/modal with:
+       "Credits consumed per action. Subscription options coming soon."
+
+[ ] UX.M3 DASHBOARD CLEANUP (static/dashboard.html)
+     - Remove or grey out unimplemented controls ("Predict Binding").
+     - Prevent user confusion about non-ready features.
+
+
+======================================================================
+## 💼 P2 — MONETIZATION & PRODUCTIZATION
+======================================================================
+
+[ ] P2.1 STRIPE PAYMENT INTEGRATION
+     - Add subscription flow + webhook handler.
+     - Tie credits to purchases.
+
+[ ] P2.2 CREDITS PRICING MODEL
+     - Define cost per:
+       Upload, Embedding batch, Similarity search, LLM summary.
+
+[ ] P2.3 USAGE ANALYTICS DASHBOARD
+     - Track per-run and per-user usage.
+     - Show credit consumption and activity heatmap.
+
+
+======================================================================
+## 🧠 P3 — ADVANCED SCIENTIFIC FEATURES (Future)
+======================================================================
+
+[ ] P3.1 STATISTICAL TESTS (t-tests, ANOVA)
+     - Optional downstream analysis modules.
+
+[ ] P3.2 GO / PATHWAY ENRICHMENT
+     - Optional biological interpretation module.
+
+[ ] P3.3 DIFFERENTIAL PEPTIDE ANALYSIS
+     - Later version of the comparison engine.
+
+
+======================================================================
+## 🌐 P4 — PLATFORM EXPANSION
+======================================================================
+
+[ ] P4.1 MIGRATE UI TO REACT/NEXT.JS
+     - Replace static/ with full modern SPA/SSR architecture.
+
+[ ] P4.2 MULTI-OMICS TOKENIZATION
+     - Extend embeddings to metabolomics, transcriptomics, proteogenomics.
+
+
+======================================================================
+## 🧭 FINISHED TASKS (DON’T MODIFY)
+======================================================================
+
+[x] 1.1 Hardened Export Auth
+[x] 1.2 Hardened FAISS Rebuild
+[x] 1.3 Stabilized ESM-2 Embedding Engine
+[x] 1.4 Background Task & DB Safety
+[x] 1.5 Endpoint Robustness & Ownership Rules
+[x] 2.1 Legacy Table Isolation
+[x] 2.2 Embedder Interface Introduced
+[x] 2.3 Centralized Config & Embedder Factory
+[x] 2.4 Config Defaults Documented
+[x] 2.5 Centralized Logging (Partially Complete)
+[x] 2.6 Add request/response logging middleware with redaction and correlation IDs
       <!-- Structural: refined logging & diagnostics for later -->
-
-======================================================================
-## 4. Product/UX
-
 [x] 4.1 Scientist Run Dashboard MVP
-      <!-- Show a list of the current user's runs with key metadata (name, created_at, status, number of peptides, has_embeddings flag), plus links/buttons into summary, fingerprint, comparison, and export actions. -->
-[x] 4.2 Run Fingerprint Visualization UI
-[x] 4.2.1 Cluster → Peptide Drilldown Panel
-[x] 4.3 Run Comparison View
-[ ] 4.4 Peptide Explanation UI
-
-[x] 5.1 Multi-Run Export Bundle (“OmicsToken Vault”)
+[x] 4.2 Fingerprint Visualization UI
+[x] A. Tiny UX polish pass (encoding/copy fixes)
+[x] 4.4 Peptide Explanation UI
+[x] 5.1 Multi-Run Export Bundle
 [x] 5.2 Automated Insight Report
-[x] 5.3 Programmatic Upload & Stable API Tokens (Lab Integration)
+[x] 5.3 API Tokens for Lab Integrations
