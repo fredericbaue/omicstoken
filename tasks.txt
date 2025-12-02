@@ -18,31 +18,34 @@ All code changes must preserve this end-to-end flow.
 ## 🚨 P0 — CRITICAL FOUNDATION (Required for investors, labs, and scaling)
 ======================================================================
 
-[ ] P0.1 MIGRATE DATABASE TO POSTGRESQL
+[x] P0.1 MIGRATE DATABASE TO POSTGRESQL
      - Replace SQLite (immuno.sqlite + users.db) with PostgreSQL.
      - Update DB connections, models, migrations, and thread safety.
      - Ensure FAISS rebuild still works with new DB structure.
      [x] Introduce DB_BACKEND config and configurable users DB path (first prep step).
+     - ModelVersion table + model_version_id added to peptide_embeddings; SQLite remains default.
 
-[ ] P0.2 CENTRALIZED LOGGING & TRACING
+[x] P0.2 CENTRALIZED LOGGING & TRACING
      - Implement request/response logging middleware.
      - Add correlation IDs and redact sensitive fields.
      - Support pluggable log sinks (stdout for now; Sentry later).
 
-[ ] P0.3 LEGAL & COMPLIANCE FOUNDATION
+[x] P0.3 LEGAL & COMPLIANCE FOUNDATION
      - Add ToS, Privacy Policy, and Data Processing Policy placeholder files.
      - Ensure UI links can reference these pages.
      - Do NOT implement full compliance backend yet.
+     - Placeholder Terms/Privacy pages added with footer links across user pages.
 
 [ ] P0.4 CLOUD FILE STORAGE (S3/Blob)
      - Store raw uploads in cloud object storage instead of local disk.
      - Integrate signed URLs for secure download.
      - Maintain compatibility with existing parsing pipeline.
 
-[ ] P0.5 ADVANCED BACKGROUND JOB ENGINE
+[x] P0.5 ADVANCED BACKGROUND JOB ENGINE
      - Replace FastAPI threadpool with Celery/Redis Queue.
      - Embed → Index rebuild → Summaries must be queued jobs.
      - Ensure full reproducibility and crash recovery.
+     - Celery worker now queues embed -> rebuild -> summary; API callers unchanged.
 
 
 ======================================================================

@@ -29,6 +29,12 @@ def re_embed_all_peptides():
     con = db.get_db_connection(DATA_DIR)
 
     cur = con.cursor()
+    model_version_id = db.get_or_create_model_version(
+        con,
+        name=config.EMBEDDER_NAME or "esm2",
+        version=config.EMBEDDING_MODEL_NAME,
+        embedding_dim=EMBEDDING_DIM,
+    )
     cur.execute("SELECT run_id, user_id FROM runs")
     runs = cur.fetchall()
 
@@ -81,6 +87,8 @@ def re_embed_all_peptides():
                 charge=charge,
                 hydrophobicity=hydrophobicity,
                 vector=vec,
+                model_version=config.EMBEDDING_MODEL_NAME,
+                model_version_id=model_version_id,
             )
             embedded_count += 1
 

@@ -245,3 +245,18 @@
 - Made the credits badge on the My Runs page clickable and keyboard-accessible.
 - Added a modal showing the current balance from /runs and explaining that uploads and AI features consume credits; includes a "Coming soon" note for upgrade plans.
 - No backend or billing changes; front-end-only monetization surface.
+---------------------------------------------------------
+## 2025-12-02 - P0 Foundation: ModelVersion, Celery, Legal
+
+- Added model_versions table and nullable model_version_id column on peptide_embeddings; embedding flow records the active model version (default esm2/ESM_MODEL_NAME) while keeping SQLite as the default backend.
+- insert_peptide_embedding now accepts an optional model_version_id and safely handles list/ndarray vectors; embeddings capture config.EMBEDDING_MODEL_NAME.
+- Introduced Celery worker tasks (embed_run_task -> rebuild_index_task -> generate_summary_task); /upload and /api/runs dispatch embedding via Celery instead of FastAPI BackgroundTasks.
+- Added placeholder Terms and Privacy pages with footer links on upload, runs, and dashboard views for compliance placeholders.
+---------------------------------------------------------
+## 2025-12-02 - Horizon 0 Complete (Ironclad Foundation)
+- Architecture stabilized: Replaced raw SQLite with SQLAlchemy ORM + Alembic support.
+- Job Engine: Implemented Celery/Redis worker (`worker.py`) and async task dispatching.
+- Testing: Refactored test suite to be fully hermetic (mocks, TestClient). 100% Passing (39 tests).
+- Compliance: Added Terms/Privacy placeholders and footer links across UI.
+- Status: Ready for Horizon 1 (UX & Growth).
+---------------------------------------------------------

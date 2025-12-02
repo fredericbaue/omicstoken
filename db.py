@@ -5,12 +5,13 @@ from typing import List, Dict, Any, Optional, Tuple
 
 import numpy as np
 import models
+import config
 
 # --- Configuration ---
 SCHEMA_VERSION = "immuno-0.1.0"
 
-DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+DB_BACKEND = config.DB_BACKEND
+DATABASE_URL = (config.DATABASE_URL or "").strip()
 USERS_DATABASE_URL = os.getenv("USERS_DATABASE_URL", "").strip()
 DEFAULT_DATA_DIR = os.getenv("DATA_DIR", "data")
 
@@ -40,6 +41,15 @@ def get_db_connection(data_dir: str) -> sqlite3.Connection:
 
 def _create_tables(con: sqlite3.Connection):
     """Creates database tables if they do not already exist."""
+    con.execute("""CREATE TABLE IF NOT EXISTS model_versions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        version TEXT NOT NULL,
+        embedding_dim INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(name, version, embedding_dim)
+    )""")
+
     con.execute("""CREATE TABLE IF NOT EXISTS runs(
         run_id TEXT PRIMARY KEY,
         user_id TEXT,
@@ -96,10 +106,12 @@ def _create_tables(con: sqlite3.Connection):
         hydrophobicity REAL,
         embedding TEXT, -- JSON list of floats
         model_version TEXT DEFAULT 'v2_gemini_768', -- Track which model generated this embedding
+        model_version_id INTEGER, -- FK to model_versions.id
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(run_id, feature_id), -- Ensure unique embedding per run and feature
         FOREIGN KEY(run_id) REFERENCES runs(run_id) ON DELETE CASCADE,
-        FOREIGN KEY(run_id, feature_id) REFERENCES features(run_id, feature_id) ON DELETE CASCADE
+        FOREIGN KEY(run_id, feature_id) REFERENCES features(run_id, feature_id) ON DELETE CASCADE,
+        FOREIGN KEY(model_version_id) REFERENCES model_versions(id)
     )""")
     
     # Migration: Add model_version column if it doesn't exist
@@ -107,10 +119,35 @@ def _create_tables(con: sqlite3.Connection):
         con.execute("ALTER TABLE peptide_embeddings ADD COLUMN model_version TEXT DEFAULT 'v2_gemini_768'")
     except sqlite3.OperationalError:
         pass  # Column likely already exists
+    # Migration: Add model_version_id column if it doesn't exist
+    try:
+        con.execute("ALTER TABLE peptide_embeddings ADD COLUMN model_version_id INTEGER")
+    except sqlite3.OperationalError:
+        pass  # Column likely already exists
     
     con.commit()
 
 # --- Helper functions for DB operations ---
+
+def get_or_create_model_version(con: sqlite3.Connection, name: str, version: str, embedding_dim: int) -> int:
+    """
+    Fetch the existing model_version id for a given name/version/dimension or insert a new row.
+    Idempotent and safe to call per embedding run.
+    """
+    cur = con.cursor()
+    cur.execute(
+        "SELECT id FROM model_versions WHERE name=? AND version=? AND embedding_dim=? LIMIT 1",
+        (name, version, embedding_dim),
+    )
+    row = cur.fetchone()
+    if row:
+        return int(row[0])
+
+    cur.execute(
+        "INSERT INTO model_versions(name, version, embedding_dim) VALUES(?,?,?)",
+        (name, version, embedding_dim),
+    )
+    return int(cur.lastrowid)
 
 def insert_run(con: sqlite3.Connection, run_id: str, meta_dict: Dict[str, Any], user_id: Optional[str] = None):
     """Inserts or replaces a run's metadata into the database."""
@@ -146,13 +183,38 @@ def insert_embedding(con: sqlite3.Connection, run_id: str, feature_id: str, meth
         (run_id, feature_id, method, polarity, json.dumps(vector.tolist())),
     )
 
-def insert_peptide_embedding(con: sqlite3.Connection, run_id: str, user_id: str, feature_id: str, sequence: str, intensity: float, 
-                             length: int, charge: int, hydrophobicity: float, vector: np.ndarray, model_version: str = "v2_gemini_768"):
+def insert_peptide_embedding(
+    con: sqlite3.Connection,
+    run_id: str,
+    user_id: str,
+    feature_id: str,
+    sequence: str,
+    intensity: float, 
+    length: int,
+    charge: int,
+    hydrophobicity: float,
+    vector: np.ndarray,
+    model_version: str = config.EMBEDDING_MODEL_NAME,
+    model_version_id: Optional[int] = None,
+):
     """Inserts a row into the new peptide_embeddings table."""
+    vector_list = vector.tolist() if hasattr(vector, "tolist") else list(vector)
     con.execute(
-        """INSERT INTO peptide_embeddings(run_id, user_id, feature_id, sequence, intensity, length, charge, hydrophobicity, embedding, model_version)
-           VALUES(?,?,?,?,?,?,?,?,?,?)""",
-        (run_id, user_id, feature_id, sequence, intensity, length, charge, hydrophobicity, json.dumps(vector.tolist()), model_version)
+        """INSERT INTO peptide_embeddings(run_id, user_id, feature_id, sequence, intensity, length, charge, hydrophobicity, embedding, model_version, model_version_id)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            run_id,
+            user_id,
+            feature_id,
+            sequence,
+            intensity,
+            length,
+            charge,
+            hydrophobicity,
+            json.dumps(vector_list),
+            model_version,
+            model_version_id,
+        ),
     )
 
 def get_run(con: sqlite3.Connection, run_id: str) -> Optional[models.Run]:
@@ -191,10 +253,6 @@ def get_features_for_run(con: sqlite3.Connection, run_id: str) -> List[models.Fe
             metadata=meta
         ))
     return results
-
-from typing import Optional, List
-import json
-import sqlite3
 
 def get_embedding(con: sqlite3.Connection, run_id: str, feature_id: str) -> Optional[List[float]]:
     """Retrieve a peptide embedding from the canonical peptide_embeddings table."""

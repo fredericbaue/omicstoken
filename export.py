@@ -106,7 +106,7 @@ def normalize_to_omics_token_v1(
             length=int(length) if length is not None else len(sequence),
             charge=int(charge) if charge is not None else None,
             hydrophobicity=float(hydrophobicity) if hydrophobicity is not None else None,
-            molecular_weight=_estimate_molecular_weight(sequence),
+            molecular_weight=calculate_molecular_weight(sequence),
         )
 
         # 4. Build canonical record

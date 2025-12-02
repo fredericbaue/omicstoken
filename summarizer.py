@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Optional
 import google.generativeai as genai
 
 import db
+import config
 import models
 
 # --- Gemini API configuration ---
@@ -63,7 +64,7 @@ def generate_summary(run_id: str, con=None) -> Dict[str, Any]:
         }
 
     if con is None:
-        con = db.get_db_connection("data")
+        con = db.get_db_connection(config.DATA_DIR)
 
     # Fetch basic stats / features for the run
     features = db.get_features_for_run(con, run_id)

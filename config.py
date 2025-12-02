@@ -12,6 +12,15 @@ EMBEDDER_NAME = os.getenv("EMBEDDER_NAME", "esm2")
 # ESM_MODEL_NAME: HF model name for the ESM-2 embedder.
 EMBEDDING_MODEL_NAME = os.getenv("ESM_MODEL_NAME", "facebook/esm2_t6_8M_UR50D")
 
+# --- Database backend selection (prep for Postgres) ---
+DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
+# Optional future use: Postgres connection string (empty keeps SQLite default)
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+# --- Celery / job engine configuration ---
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
+
 # Logging configuration
 # LOG_LEVEL: default INFO; override via env LOG_LEVEL=DEBUG/ERROR.
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()

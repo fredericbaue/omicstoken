@@ -2,11 +2,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi.concurrency import run_in_threadpool
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, Response
 from fastapi import Request
 from pydantic import BaseModel, Field
 import uvicorn
@@ -16,6 +15,7 @@ import pandas as pd
 import numpy as np
 import asyncio
 import random
+import inspect
 import time
 import uuid
 from sklearn.cluster import KMeans
@@ -39,7 +39,6 @@ import export
 import auth
 import config
 from auth import current_active_user, current_active_user_or_token, User
-import config
 
 LOGGER = logging.getLogger(__name__)
 REQUEST_LOGGER = logging.getLogger("request_logger")
@@ -142,6 +141,12 @@ def _embed_run(run_id: str, expected_user_id: Optional[str] = None):
                 detail="Run not found",
             )
 
+        model_version_id = db.get_or_create_model_version(
+            con,
+            name=config.EMBEDDER_NAME or "esm2",
+            version=config.EMBEDDING_MODEL_NAME,
+            embedding_dim=EMBEDDING_DIM,
+        )
         features = db.get_features_for_run(con, run_id)
 
         count = 0
@@ -165,6 +170,8 @@ def _embed_run(run_id: str, expected_user_id: Optional[str] = None):
                     props["charge"],
                     props["hydrophobicity"],
                     vec,
+                    model_version=config.EMBEDDING_MODEL_NAME,
+                    model_version_id=model_version_id,
                 )
                 count += 1
             else:
@@ -203,7 +210,7 @@ def upload_page():
 
 
 @app.post("/upload", include_in_schema=False)
-async def upload_handler(request: Request, background_tasks: BackgroundTasks,
+async def upload_handler(request: Request,
                          file: UploadFile = File(...),
                          run_id: str = Form(""),
                          instrument: str = Form(""),
@@ -259,19 +266,14 @@ async def upload_handler(request: Request, background_tasks: BackgroundTasks,
     con.close()
     rows_ingested = len(features)
 
-    # --- Background Tasks ---
-    def _background_work(run_id_to_process: str, owner_id: str):
-        # This function is synchronous and will be run in a threadpool
-        try:
-            LOGGER.info("Background embedding started for run %s", run_id_to_process)
-            embed_result = _embed_run(run_id=run_id_to_process, expected_user_id=owner_id)
-            LOGGER.info("Background embedding finished for run %s; peptides_embedded=%s", run_id_to_process, embed_result['peptides_embedded'])
-            LOGGER.info("Background: Ready for summarization.")
-        except Exception as e:
-            LOGGER.error("Background embedding failed for run %s: %s", run_id_to_process, e)
-
-    # Use run_in_threadpool to avoid blocking the event loop with synchronous code
-    background_tasks.add_task(run_in_threadpool, _background_work, run_id_final, str(user.id))
+    # --- Background Jobs via Celery ---
+    try:
+        from worker import embed_run_task
+        embed_run_task.delay(run_id_final, str(user.id))
+        LOGGER.info("Dispatched Celery embed_run_task for run %s (user %s)", run_id_final, user.id)
+    except Exception as e:
+        LOGGER.exception("Failed to dispatch Celery embed_run_task for run %s: %s", run_id_final, e)
+        raise HTTPException(status_code=500, detail="Failed to queue embedding job. Please try again later.")
 
     # --- Success Response ---
     first_feature_id = features[0].feature_id if features else None
@@ -806,13 +808,23 @@ async def export_bundle(payload: ExportBundleRequest, user: User = Depends(curre
 
 @app.post("/auth/api-tokens")
 async def create_api_token(label: Optional[str] = None, user: User = Depends(current_active_user)):
-    token_payload = await auth.create_api_token_for_user(str(user.id), label=label)
+    token_payload = auth.create_api_token_for_user(str(user.id), label=label)
+    if inspect.isawaitable(token_payload):
+        token_payload = await token_payload
+    created_at_raw = token_payload.get("created_at")
+    if isinstance(created_at_raw, str):
+        created_at_iso = created_at_raw
+    elif created_at_raw is not None and hasattr(created_at_raw, "isoformat"):
+        created_at_iso = created_at_raw.isoformat() + "Z"
+    else:
+        created_at_iso = None
+
     # Return plain token once; do not log it
     return {
         "token": token_payload["token"],
         "token_id": token_payload["token_id"],
-        "label": token_payload["label"],
-        "created_at": token_payload["created_at"].isoformat() + "Z",
+        "label": token_payload.get("label"),
+        "created_at": created_at_iso,
     }
 
 
@@ -968,7 +980,7 @@ class UploadRunRequest(BaseModel):
 
 
 @app.post("/api/runs")
-def create_run_api(payload: UploadRunRequest, background_tasks: BackgroundTasks, user: User = Depends(current_active_user_or_token)):
+def create_run_api(payload: UploadRunRequest, user: User = Depends(current_active_user_or_token)):
     if not payload.features:
         raise HTTPException(status_code=400, detail="Features are required.")
 
@@ -1002,7 +1014,13 @@ def create_run_api(payload: UploadRunRequest, background_tasks: BackgroundTasks,
         con.commit()
 
         if payload.auto_embed:
-            background_tasks.add_task(run_in_threadpool, _embed_run, run_id, str(user.id))
+            try:
+                from worker import embed_run_task
+                embed_run_task.delay(run_id, str(user.id))
+                LOGGER.info("Dispatched Celery embed_run_task for run %s (user %s) via API", run_id, user.id)
+            except Exception as e:
+                LOGGER.exception("Failed to dispatch Celery embed_run_task for run %s: %s", run_id, e)
+                raise HTTPException(status_code=500, detail="Failed to queue embedding job.")
 
         return {
             "run_id": run_id,
