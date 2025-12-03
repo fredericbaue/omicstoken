@@ -1,9 +1,26 @@
 <!DOCTYPE html>
+<!-- UX.H1: Drag-and-drop upload zone implemented (CTO/UX pass) -->
 <html>
 <head>
     <title>Upload Run - Immuno-Engine</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
+        .app-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .app-title {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+        .app-tagline {
+            margin: 0.35rem 0 0;
+            color: var(--text-secondary);
+        }
         .dimmed { opacity: 0.5; pointer-events: none; }
         .status-card { margin-top: 1rem; }
         .success-panel { margin-top: 1.5rem; }
@@ -11,13 +28,47 @@
         .status-strong { color: var(--text-primary); font-weight: 600; }
         .error-card { border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
         .success-note { color: var(--text-secondary); margin-top: 0.25rem; }
+        .dropzone {
+            border: 2px dashed var(--border-color);
+            border-radius: 14px;
+            padding: 1.5rem;
+            background: rgba(15, 23, 42, 0.35);
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+            text-align: center;
+        }
+        .dropzone.drag-over {
+            background: rgba(99, 102, 241, 0.15);
+            border-color: rgba(99, 102, 241, 0.6);
+        }
+        .dropzone input[type="file"] {
+            display: none;
+        }
+        #fileInput {
+            display: none;
+        }
+        .dropzone p {
+            margin: 0.4rem 0 0;
+            color: var(--text-secondary);
+        }
+        .file-label {
+            margin-top: 0.75rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
+    <!-- UX.H1 Visual polish: Material-inspired upload card (CTO/UX pass) -->
     <div class="container">
-        <div class="header flex-between">
-            <h1>Upload Dataset</h1>
-            <a href="/static/runs.html" class="btn btn-secondary">Back to Runs</a>
+        <div class="app-bar">
+            <div>
+                <h1 class="app-title">OmicsToken</h1>
+                <p class="app-tagline">Upload a run to start exploring your peptides.</p>
+            </div>
+            <a href="/static/runs.html" style="font-size: 0.9rem; color: var(--text-muted); text-decoration: none;">
+                ← Back to Runs
+            </a>
         </div>
 
         <div id="uploadCard" class="card" style="max-width: 800px; margin: 0 auto;">
@@ -25,8 +76,14 @@
                 <div class="grid">
                     <div>
                         <label for="fileInput">Peptide Table File</label>
-                        <input type="file" id="fileInput" name="file" required
-                            style="padding: 1rem; border: 2px dashed var(--border-color); background: rgba(0,0,0,0.2); cursor: pointer;">
+                        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Upload peptide table file">
+                            <input type="file" id="fileInput" name="file" required>
+                            <div>
+                                <strong>Drop your CSV here or click to browse</strong>
+                                <p>We’ll parse peptides and start embedding in the background.</p>
+                                <p id="fileNameLabel" class="file-label">No file selected</p>
+                            </div>
+                        </div>
                         <p class="text-sm text-muted" style="margin-top: 0.5rem;">Accepted formats: MaxQuant (peptides.txt), DIA-NN, Spectronaut, or Generic CSV.</p>
                     </div>
 
@@ -85,6 +142,63 @@
         const errorCard = document.getElementById('errorCard');
         const successPanel = document.getElementById('successPanel');
         const submitBtn = document.querySelector('button[type="submit"]');
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const fileNameLabel = document.getElementById('fileNameLabel');
+
+        function updateFileLabel(file) {
+            fileNameLabel.textContent = file ? file.name : 'No file selected';
+        }
+
+        function handleFiles(files) {
+            if (!files || !files.length) {
+                return;
+            }
+            const file = files[0];
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInput.files = dataTransfer.files;
+            updateFileLabel(file);
+        }
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                fileInput.click();
+            }
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                dropzone.classList.add('drag-over');
+            });
+        });
+
+        ['dragleave', 'dragend'].forEach(eventName => {
+            dropzone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                dropzone.classList.remove('drag-over');
+            });
+        });
+
+        dropzone.addEventListener('drop', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            dropzone.classList.remove('drag-over');
+            const files = event.dataTransfer?.files;
+            if (files && files.length) {
+                handleFiles(files);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            const file = fileInput.files && fileInput.files[0];
+            updateFileLabel(file);
+        });
 
         function setFormDisabled(disabled) {
             uploadForm.classList.toggle('dimmed', disabled);

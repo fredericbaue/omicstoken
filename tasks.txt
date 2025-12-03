@@ -59,13 +59,13 @@ All code changes must preserve this end-to-end flow.
      - Consolidate Delete, Fingerprint, Re-embed into a single dropdown.
      - Keep only “Dashboard”, “Summary”, “Search” as primary actions.
 
-[ ] UX.C2 SIMPLIFY STATUS LABELS (static/runs.html)
+[x] UX.C2 SIMPLIFY STATUS LABELS (static/runs.html)
      - Replace computeStatus logic with clearer statuses:
        "Ready", "Processing", "Waiting for Embedding".
 
 ### HIGH VALUE UX (Flow & Friction Removal)
 
-[ ] UX.H1 DRAG-AND-DROP UPLOAD (static/upload.html)
+[x] UX.H1 DRAG-AND-DROP UPLOAD (static/upload.html)
      - Replace file input with a branded drag-and-drop upload zone.
      - Add hover/focus visual feedback.
 

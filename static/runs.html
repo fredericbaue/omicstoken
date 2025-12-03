@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- Simplified run status chips to friendly scientist labels. -->
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
@@ -120,6 +121,8 @@
                     loadingEl.remove();
                     runs.forEach(run => {
                         const status = computeStatus(run);
+                        const nFeatures = getStatValue(run, 'n_features');
+                        const nEmbeddings = getStatValue(run, 'n_embeddings');
                         const card = document.createElement('div');
                         card.id = `run-card-${run.run_id}`; // Add an ID for easy removal
                         card.className = 'card run-card';
@@ -139,8 +142,8 @@
                                 </div>
                             </div>
                             <div class="flex text-sm text-muted" style="gap: 1.5rem; margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                                <span><strong>${run.n_features}</strong> features</span>
-                                <span><strong>${run.n_embeddings}</strong> embeddings</span>
+                                <span><strong>${nFeatures}</strong> features</span>
+                                <span><strong>${nEmbeddings}</strong> embeddings</span>
                                 <span>Instrument: <strong>${run.instrument || 'N/A'}</strong></span>
                             </div>
                             ${renderHint(run)}
@@ -172,24 +175,52 @@
             }
         });
 
+        function getStatValue(run, field, fallback = 0) {
+            const stats = run.stats || {};
+            if (typeof stats[field] === 'number') {
+                return stats[field];
+            }
+            if (typeof run[field] === 'number') {
+                return run[field];
+            }
+            return fallback;
+        }
+
+        function computeFriendlyStatus(run) {
+            const nEmbeddings = getStatValue(run, 'n_embeddings');
+            if (run.embedding_pending === true) {
+                return "Waiting for Embedding";
+            }
+            if (run.indexing_pending === true || run.summary_pending === true) {
+                return "Processing";
+            }
+            if (nEmbeddings > 0) {
+                return "Ready";
+            }
+            return "Processing";
+        }
+
         function computeStatus(run) {
-            if (run.n_features > 0 && run.n_embeddings === run.n_features) {
-                return { key: 'ready', label: 'Ready', className: 'ready' };
+            const friendly = computeFriendlyStatus(run);
+            if (friendly === "Ready") {
+                return { key: 'ready', label: friendly, className: 'ready' };
             }
-            if (run.n_embeddings > 0 && run.n_embeddings < run.n_features) {
-                return { key: 'processing', label: 'Processing', className: 'processing' };
+            if (friendly === "Waiting for Embedding") {
+                return { key: 'waiting_for_embedding', label: friendly, className: 'not-embedded' };
             }
-            return { key: 'not_embedded', label: 'Not embedded', className: 'not-embedded' };
+            return { key: 'processing', label: friendly, className: 'processing' };
         }
 
         function renderHint(run) {
-            if (run.n_features === 0) {
+            const nFeatures = getStatValue(run, 'n_features');
+            const nEmbeddings = getStatValue(run, 'n_embeddings');
+            if (nFeatures === 0) {
                 return `<div class="hint">No features detected. Check your upload format or input file.</div>`;
             }
-            if (run.n_embeddings > 0 && run.n_embeddings < run.n_features) {
+            if (nEmbeddings > 0 && nEmbeddings < nFeatures) {
                 return `<div class="hint">Some peptides aren't embedded yet. Click Re-embed to complete this run.</div>`;
             }
-            if (run.n_embeddings === 0) {
+            if (nEmbeddings === 0) {
                 return `<div class="hint">No embeddings generated yet. Click Re-embed to start embedding.</div>`;
             }
             return '';
@@ -276,7 +307,7 @@
                 const matchesStatus =
                     statusValue === 'all' ? true :
                     statusValue === 'ready' ? status === 'ready' :
-                    (status === 'processing' || status === 'not_embedded');
+                    (status === 'processing' || status === 'not_embedded' || status === 'waiting_for_embedding');
 
                 card.style.display = matchesTerm && matchesStatus ? '' : 'none';
             });
