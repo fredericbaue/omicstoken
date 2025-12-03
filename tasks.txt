@@ -1,21 +1,21 @@
-# OmicsToken – Unified Engineering + UX + CTO Priority Task List
+﻿# OmicsToken â€“ Unified Engineering + UX + CTO Priority Task List
 # Version: 2025-12-02
 # This file consolidates MVP-Critical, Infrastructure, UX, and Productization tasks
 # into a single prioritized roadmap for Codex in VS Code.
 
 ======================================================================
-## 🔥 0. Absolute Rule (Non-Negotiable)
+## ðŸ”¥ 0. Absolute Rule (Non-Negotiable)
 NEVER break the pipeline:
 
-Upload → Parse → Store Features → Embed → Store Embeddings → Rebuild Index →
-Search → Compare → Summarize → Export.
+Upload â†’ Parse â†’ Store Features â†’ Embed â†’ Store Embeddings â†’ Rebuild Index â†’
+Search â†’ Compare â†’ Summarize â†’ Export.
 
 All code changes must preserve this end-to-end flow.
 ======================================================================
 
 
 ======================================================================
-## 🚨 P0 — CRITICAL FOUNDATION (Required for investors, labs, and scaling)
+## ðŸš¨ P0 â€” CRITICAL FOUNDATION (Required for investors, labs, and scaling)
 ======================================================================
 
 [x] P0.1 MIGRATE DATABASE TO POSTGRESQL
@@ -43,13 +43,13 @@ All code changes must preserve this end-to-end flow.
 
 [x] P0.5 ADVANCED BACKGROUND JOB ENGINE
      - Replace FastAPI threadpool with Celery/Redis Queue.
-     - Embed → Index rebuild → Summaries must be queued jobs.
+     - Embed â†’ Index rebuild â†’ Summaries must be queued jobs.
      - Ensure full reproducibility and crash recovery.
      - Celery worker now queues embed -> rebuild -> summary; API callers unchanged.
 
 
 ======================================================================
-## 💎 P1 — UX/UI PHASE 2.1 (High-impact demo & scientist polish)
+## ðŸ’Ž P1 â€” UX/UI PHASE 2.1 (High-impact demo & scientist polish)
 # These tasks dramatically improve user experience without changing the backend.
 ======================================================================
 
@@ -57,7 +57,7 @@ All code changes must preserve this end-to-end flow.
 
 [x] UX.C1 REFACTOR RUN LIST ACTIONS (static/runs.html)
      - Consolidate Delete, Fingerprint, Re-embed into a single dropdown.
-     - Keep only “Dashboard”, “Summary”, “Search” as primary actions.
+     - Keep only â€œDashboardâ€, â€œSummaryâ€, â€œSearchâ€ as primary actions.
 
 [x] UX.C2 SIMPLIFY STATUS LABELS (static/runs.html)
      - Replace computeStatus logic with clearer statuses:
@@ -75,8 +75,11 @@ All code changes must preserve this end-to-end flow.
      - Clicking automatically loads search.html with run_id + feature_id selected.
 
 [x] UX.H3 POST-UPLOAD FUNNEL
-     - After upload → show success banner → link directly to Runs List.
+     - After upload â†’ show success banner â†’ link directly to Runs List.
      - Remove friction returning to /runs.html.
+
+[x] 1.6 Pipeline Instrumentation (Time-to-Insight tracking)
+
 
 ### MEDIUM UX (Trust & Polish)
 
@@ -94,7 +97,7 @@ All code changes must preserve this end-to-end flow.
 
 
 ======================================================================
-## 💼 P2 — MONETIZATION & PRODUCTIZATION
+## ðŸ’¼ P2 â€” MONETIZATION & PRODUCTIZATION
 ======================================================================
 
 [ ] P2.1 STRIPE PAYMENT INTEGRATION
@@ -111,7 +114,7 @@ All code changes must preserve this end-to-end flow.
 
 
 ======================================================================
-## 🧠 P3 — ADVANCED SCIENTIFIC FEATURES (Future)
+## ðŸ§  P3 â€” ADVANCED SCIENTIFIC FEATURES (Future)
 ======================================================================
 
 [ ] P3.1 STATISTICAL TESTS (t-tests, ANOVA)
@@ -125,7 +128,7 @@ All code changes must preserve this end-to-end flow.
 
 
 ======================================================================
-## 🌐 P4 — PLATFORM EXPANSION
+## ðŸŒ P4 â€” PLATFORM EXPANSION
 ======================================================================
 
 [ ] P4.1 MIGRATE UI TO REACT/NEXT.JS
@@ -136,7 +139,7 @@ All code changes must preserve this end-to-end flow.
 
 
 ======================================================================
-## 🧭 FINISHED TASKS (DON’T MODIFY)
+## ðŸ§­ FINISHED TASKS (DONâ€™T MODIFY)
 ======================================================================
 
 [x] 1.1 Hardened Export Auth
@@ -158,3 +161,4 @@ All code changes must preserve this end-to-end flow.
 [x] 5.1 Multi-Run Export Bundle
 [x] 5.2 Automated Insight Report
 [x] 5.3 API Tokens for Lab Integrations
+

@@ -1,10 +1,12 @@
 import logging
+from datetime import datetime
 
 from celery import Celery
 
 import config
 import search
 import summarizer
+import db
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,6 +32,28 @@ def embed_run_task(run_id: str, owner_id: str):
             LOGGER.info(
                 "Queued generate_summary_task for run %s (task_id=%s)", run_id, getattr(summary_job, "id", None)
             )
+        try:
+            completion_time = datetime.utcnow().isoformat() + "Z"
+            con = db.get_db_connection(config.DATA_DIR)
+            start_time = None
+            run = db.get_run(con, run_id)
+            if run and getattr(run, "meta", None):
+                start_time = run.meta.get("upload_started_at")
+            duration = None
+            if start_time:
+                try:
+                    started_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                    completed_dt = datetime.fromisoformat(completion_time.replace("Z", "+00:00"))
+                    duration = (completed_dt - started_dt).total_seconds()
+                except Exception as parse_err:
+                    LOGGER.warning("Failed to parse upload_started_at for run %s: %s", run_id, parse_err)
+            update_payload = {"embed_completed_at": completion_time}
+            if duration is not None:
+                update_payload["time_to_embeddings_sec"] = duration
+            db.update_run_meta(con, run_id, update_payload)
+            con.close()
+        except Exception as timing_err:
+            LOGGER.warning("Failed to record timing metadata for run %s: %s", run_id, timing_err)
         LOGGER.info("embed_run_task completed for run %s (owner %s)", run_id, owner_id)
         return result
     except Exception as e:

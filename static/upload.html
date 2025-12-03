@@ -249,7 +249,7 @@
                     const runId = data.run_id;
                     const rowsIngested = (data.rows_ingested !== undefined && data.rows_ingested !== null) ? data.rows_ingested : 'Unknown';
                     const message = data.message || 'Upload complete and embedding started in background.';
-                    statusDiv.innerHTML = '<div style="padding: 1rem;"><p class="status-text"><span class="status-strong" style="color: var(--success-color);">Upload complete.</span> Embeddings are running in the background.</p></div>';
+                    statusDiv.innerHTML = '<div style="padding: 1rem;"><p class="status-text"><span class="status-strong" style="color: var(--success-color);">Upload Complete!</span> Redirecting to analysis...</p></div>';
                     uploadCard.classList.add('dimmed');
                     successPanel.style.display = 'block';
                     successPanel.innerHTML = `
@@ -265,6 +265,10 @@
                             <p class="text-muted" style="margin-top: 1rem;">You can revisit this run anytime while embeddings finish.</p>
                         </div>
                     `;
+                    // Auto-redirect to Dashboard after 1.5 seconds
+                    setTimeout(() => {
+                        window.location.href = `/static/dashboard.html?run_id=${runId}`;
+                    }, 1500);
                     uploadForm.reset();
                 } else {
                     const detail = (data && data.detail) ? data.detail : (text ? text : `Upload failed (HTTP ${res.status}).`);

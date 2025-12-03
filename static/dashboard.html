@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" class="dark">
 
 <head>
@@ -273,18 +273,20 @@
                     sigClass = "border-l-2 border-emerald-500 pl-1.5";
                 }
 
-                div.innerHTML = `
-                    <div class="${sigClass}">
-                        <div class="flex justify-between items-baseline">
-                            <span class="font-mono text-xs text-emerald-400 font-bold truncate w-32">${p.sequence}</span>
-                            <span class="text-[10px] text-slate-500">${p.intensity.toExponential(1)}</span>
-                        </div>
-                        <div class="flex justify-between mt-1 text-[10px] text-slate-600 group-hover:text-slate-400">
-                            <span>MW: ${p.properties.molecular_weight}</span>
-                            <span>Hyd: ${p.properties.hydrophobicity}</span>
-                        </div>
-                    </div>
-                `;
+                  div.innerHTML = `
+                      <div class="${sigClass}">
+                          <div class="flex justify-between items-baseline">
+                              <span class="font-mono text-xs font-bold truncate w-32 text-emerald-400 hover:text-emerald-300 hover:underline">
+                                  <a href="/static/search.html?run_id=${encodeURIComponent(document.getElementById('runIdInput').value || '')}&sequence=${encodeURIComponent(p.sequence)}">${p.sequence}</a>
+                              </span>
+                              <span class="text-[10px] text-slate-500">${p.intensity.toExponential(1)}</span>
+                          </div>
+                          <div class="flex justify-between mt-1 text-[10px] text-slate-600 group-hover:text-slate-400">
+                              <span>MW: ${p.properties.molecular_weight}</span>
+                              <span>Hyd: ${p.properties.hydrophobicity}</span>
+                          </div>
+                      </div>
+                  `;
                 list.appendChild(div);
             });
         }
@@ -382,7 +384,13 @@
             document.getElementById('detailView').classList.remove('hidden');
 
             // Populate Data
-            document.getElementById('detailSeq').innerText = p.sequence;
+            const detailSeqEl = document.getElementById('detailSeq');
+            detailSeqEl.innerHTML = '';
+            const seqLink = document.createElement('a');
+            seqLink.href = `/static/search.html?run_id=${encodeURIComponent(document.getElementById('runIdInput').value || '')}&sequence=${encodeURIComponent(p.sequence)}`;
+            seqLink.textContent = p.sequence;
+            seqLink.className = "text-emerald-400 hover:text-emerald-300 hover:underline";
+            detailSeqEl.appendChild(seqLink);
             document.getElementById('detailId').innerText = p.feature_id;
             document.getElementById('detailCharge').innerText = p.properties.charge > 0 ? `+${p.properties.charge}` : p.properties.charge;
             document.getElementById('detailIntensity').innerText = p.intensity.toExponential(2);
@@ -413,3 +421,5 @@
 </body>
 
 </html>
+
+

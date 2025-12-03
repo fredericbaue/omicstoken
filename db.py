@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 import models
 import config
+import logging
 
 # --- Configuration ---
 SCHEMA_VERSION = "immuno-0.1.0"
@@ -216,6 +217,26 @@ def insert_peptide_embedding(
             model_version_id,
         ),
     )
+
+def update_run_meta(con: sqlite3.Connection, run_id: str, updates: Dict[str, Any]) -> None:
+    """
+    Safely merge new metadata fields into runs.meta_json for a given run.
+    Parses existing JSON (falls back to empty dict on error), applies a shallow update,
+    and persists the merged document.
+    """
+    cur = con.cursor()
+    cur.execute("SELECT meta_json FROM runs WHERE run_id=?", (run_id,))
+    row = cur.fetchone()
+    existing_meta: Dict[str, Any] = {}
+    if row and row[0]:
+        try:
+            existing_meta = json.loads(row[0]) or {}
+        except Exception as e:
+            logging.warning("Failed to parse meta_json for run %s; overwriting with updates only (%s)", run_id, e)
+            existing_meta = {}
+    merged = {**existing_meta, **(updates or {})}
+    cur.execute("UPDATE runs SET meta_json=? WHERE run_id=?", (json.dumps(merged), run_id))
+    con.commit()
 
 def get_run(con: sqlite3.Connection, run_id: str) -> Optional[models.Run]:
     """Retrieves a run's metadata."""

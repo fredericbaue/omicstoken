@@ -148,25 +148,23 @@
                             </div>
                             ${renderHint(run)}
                             <div class="actions-row" role="group" aria-label="Run actions">
-                                <div class="primary-actions" aria-label="Primary actions">
-                                    <a href="/static/simple_dashboard.html?run_id=${run.run_id}" class="btn btn-secondary">Dashboard</a>
-                                    <a href="/static/summary.html?run_id=${run.run_id}" class="btn btn-secondary">Summary</a>
-                                    <a href="/static/search.html?run_id=${run.run_id}" class="btn btn-secondary">Search</a>
-                                </div>
-                                <div class="dropdown-wrapper">
-                                    <button class="btn btn-secondary btn-ghost more-button" aria-haspopup="true" aria-expanded="false" aria-controls="actions-menu-${run.run_id}" title="More actions">
-                                        More...
-                                    </button>
-                                    <div class="actions-dropdown" id="actions-menu-${run.run_id}" role="menu">
-                                        <a href="/static/fingerprint.html?run_id=${run.run_id}" class="dropdown-item" role="menuitem" data-menu-item>Fingerprint</a>
-                                        <button class="dropdown-item btn-warning" role="menuitem" data-menu-item onclick="reEmbedRun('${run.run_id}')">Re-embed</button>
-                                        <button class="dropdown-item danger" role="menuitem" data-menu-item onclick="deleteRun('${run.run_id}')">Delete</button>
+                                <a href="/static/dashboard.html?run_id=${run.run_id}" class="btn btn-primary">Dashboard</a>
+                                <button onclick="generateSummary('${run.run_id}')" class="btn btn-secondary">Summary</button>
+                                <a href="/static/search.html?run_id=${run.run_id}" class="btn btn-secondary">Search</a>
+
+                                <div class="dropdown">
+                                    <button onclick="toggleDropdown('${run.run_id}')" class="btn-icon" title="More options">⋮</button>
+                                    <div id="dropdown-${run.run_id}" class="dropdown-content">
+                                        <a href="/static/fingerprint.html?run_id=${run.run_id}">View Fingerprint</a>
+                                        
+                                        ${nEmbeddings === 0 ? `<button onclick="reEmbedRun('${run.run_id}')">⚡ Re-embed Run</button>` : ''}
+                                        
+                                        <button onclick="deleteRun('${run.run_id}')" style="color: #ef4444;">Delete Run</button>
                                     </div>
                                 </div>
                             </div>
                         `;
                         runsList.appendChild(card);
-                        attachDropdownHandlers(card);
                     });
                     applyFilters();
                 }
@@ -237,6 +235,9 @@
                     toggle.setAttribute('aria-expanded', 'false');
                 }
             });
+            document.querySelectorAll('.dropdown-content.show').forEach(menu => {
+                menu.classList.remove('show');
+            });
         }
 
         function toggleDropdown(button) {
@@ -264,6 +265,31 @@
                 closeAllDropdowns();
             }
         });
+
+        /* Dropdown Toggle Logic */
+        function toggleDropdown(runId) {
+            const dropdown = document.getElementById(`dropdown-${runId}`);
+            if (!dropdown) return;
+            const dropdowns = document.getElementsByClassName("dropdown-content");
+            for (let i = 0; i < dropdowns.length; i++) {
+                if (dropdowns[i] !== dropdown) {
+                    dropdowns[i].classList.remove('show');
+                }
+            }
+            dropdown.classList.toggle("show");
+        }
+
+        window.onclick = function(event) {
+            if (!event.target.matches('.btn-icon')) {
+                const dropdowns = document.getElementsByClassName("dropdown-content");
+                for (let i = 0; i < dropdowns.length; i++) {
+                    const openDropdown = dropdowns[i];
+                    if (openDropdown.classList.contains('show')) {
+                        openDropdown.classList.remove('show');
+                    }
+                }
+            }
+        }
 
         function attachDropdownHandlers(card) {
             const moreButton = card.querySelector('.more-button');

@@ -1,29 +1,59 @@
-/* Modern Scientific Dark Theme */
+﻿/* Modern Scientific Dark Theme - MD3 Tokens */
 :root {
-    --bg-color: #0f172a;
+    /* MD3 Color Tokens (Dark Mode) */
+    --md-sys-color-background: #020617; /* Slate 950 */
+    --md-sys-color-on-background: #e2e8f0; /* Slate 200 */
+    
+    --md-sys-color-surface: #0f172a; /* Slate 900 */
+    --md-sys-color-surface-container: #1e293b; /* Slate 800 (Cards) */
+    --md-sys-color-surface-container-high: #334155; /* Slate 700 (Dropdowns/Modals) */
+    
+    --md-sys-color-primary: #38bdf8; /* Sky 400 */
+    --md-sys-color-on-primary: #082f49; /* Sky 950 */
+    --md-sys-color-primary-container: #0c4a6e; /* Sky 900 */
+    --md-sys-color-on-primary-container: #bae6fd; /* Sky 200 */
+
+    --md-sys-color-secondary: #94a3b8; /* Slate 400 */
+    --md-sys-color-outline: #334155; /* Slate 700 */
+    
+    --md-sys-color-error: #ef4444; /* Red 500 */
+    --md-sys-color-success: #22c55e; /* Green 500 */
+
+    /* Typography */
+    --md-sys-typescale-body-large-font: 'Inter', system-ui, sans-serif;
+    --md-sys-typescale-label-large-font: 'Inter', system-ui, sans-serif;
+    --md-sys-typescale-code-font: 'JetBrains Mono', monospace;
+
+    /* Elevation & Shape */
+    --md-sys-shape-corner-medium: 12px;
+    --md-sys-shape-corner-small: 8px;
+    --md-sys-elevation-2: 0px 4px 8px 3px rgba(0,0,0,0.15), 0px 1px 3px rgba(0,0,0,0.3);
+
+    /* Legacy aliases for compatibility */
+    --bg-color: var(--md-sys-color-background);
     --card-bg: rgba(30, 41, 59, 0.7);
-    --text-primary: #f1f5f9;
-    --text-secondary: #94a3b8;
-    --accent-color: #38bdf8;
+    --text-primary: var(--md-sys-color-on-background);
+    --text-secondary: var(--md-sys-color-secondary);
+    --accent-color: var(--md-sys-color-primary);
     --accent-hover: #0ea5e9;
-    --success-color: #22c55e;
-    --danger-color: #ef4444;
+    --success-color: var(--md-sys-color-success);
+    --danger-color: var(--md-sys-color-error);
     --border-color: rgba(148, 163, 184, 0.1);
     --glass-border: 1px solid rgba(255, 255, 255, 0.1);
-    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow: var(--md-sys-elevation-2);
     --glow: 0 0 15px rgba(56, 189, 248, 0.3);
 }
 
 body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background-color: var(--bg-color);
-    background-image: 
-        radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.1) 0px, transparent 50%),
-        radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
-    color: var(--text-primary);
+    background-color: var(--md-sys-color-background);
+    color: var(--md-sys-color-on-background);
+    font-family: var(--md-sys-typescale-body-large-font);
     margin: 0;
     min-height: 100vh;
     line-height: 1.6;
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.1) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
 }
 
 /* Typography */
@@ -48,15 +78,11 @@ a:hover { color: var(--accent-hover); text-shadow: 0 0 8px rgba(56, 189, 248, 0.
 }
 
 /* Cards & Glassmorphism */
-.card, .header, .runs-list, .form-container {
-    background: var(--card-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: var(--glass-border);
-    border-radius: 16px;
-    padding: 2rem;
-    box-shadow: var(--shadow);
-    margin-bottom: 2rem;
+.card, .run-card, .status-card {
+    background-color: var(--md-sys-color-surface-container);
+    border-radius: var(--md-sys-shape-corner-medium);
+    border: 1px solid var(--md-sys-color-outline);
+    box-shadow: var(--md-sys-elevation-2);
 }
 
 /* Buttons */
@@ -64,34 +90,36 @@ a:hover { color: var(--accent-hover); text-shadow: 0 0 8px rgba(56, 189, 248, 0.
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
-    transition: all 0.2s;
+    padding: 0.6rem 1.5rem;
+    border-radius: 999px; /* MD3 pill */
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    transition: background-color 0.2s, box-shadow 0.2s;
     border: none;
     cursor: pointer;
     gap: 0.5rem;
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%);
-    color: white;
-    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+    background-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    border: none;
 }
 
 .btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(14, 165, 233, 0.4);
+    box-shadow: var(--md-sys-elevation-2);
+    filter: brightness(1.1);
 }
 
 .btn-secondary {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-primary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: transparent;
+    border: 1px solid var(--md-sys-color-outline);
+    color: var(--md-sys-color-primary);
 }
 
 .btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.15);
+    box-shadow: var(--md-sys-elevation-2);
+    filter: brightness(1.05);
 }
 
 .btn-danger {
@@ -199,3 +227,70 @@ tr:hover td {
     padding: 1rem;
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
+
+/* --- MD3 Dropdown Component --- */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0;
+    min-width: 180px; /* Slightly wider for readability */
+    background-color: var(--md-sys-color-surface-container-high); /* MD3 Token */
+    color: var(--md-sys-color-on-surface);
+    box-shadow: var(--md-sys-elevation-2); /* MD3 Token */
+    border: 1px solid var(--md-sys-color-outline); /* MD3 Token */
+    border-radius: var(--md-sys-shape-corner-small); /* MD3 Token */
+    z-index: 50;
+    overflow: hidden;
+    padding: 4px 0; /* Vertical padding for list look */
+}
+
+/* Links & Buttons inside Dropdown */
+.dropdown-content a, .dropdown-content button {
+    display: block;
+    width: 100%;
+    padding: 12px 16px; /* Touch target sizing */
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--md-sys-color-on-surface); /* Text color */
+    font-family: var(--md-sys-typescale-body-large-font);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.1s;
+    text-decoration: none;
+}
+
+.dropdown-content a:hover, .dropdown-content button:hover {
+    background-color: rgba(255, 255, 255, 0.08); /* Subtle hover state */
+}
+
+.dropdown-content .show {
+    display: block;
+}
+
+/* Icon Button (Trigger) */
+.btn-icon {
+    background: transparent;
+    border: 1px solid var(--md-sys-color-outline);
+    color: var(--md-sys-color-secondary);
+    width: 40px; 
+    height: 40px; /* Square touch target */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px; /* Circle shape */
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    background-color: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-primary);
+    border-color: var(--md-sys-color-primary);
+}
+

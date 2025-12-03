@@ -421,7 +421,11 @@
             const div = document.createElement("div");
             div.className = "neighbors-item";
             div.innerHTML = `
-              <span class="seq">${n.peptide_sequence || ""}</span>
+              <span class="seq">
+                <a href="/static/search.html?run_id=${encodeURIComponent(runId || "")}&sequence=${encodeURIComponent(n.peptide_sequence || "")}" class="text-blue-400 hover:text-blue-300 hover:underline">
+                  ${n.peptide_sequence || ""}
+                </a>
+              </span>
               <span class="small">sim=${(n.similarity ?? n.similarity_score ?? 0).toFixed(3)}</span>
               <span class="small">int=${n.intensity ?? ""}</span>
             `;

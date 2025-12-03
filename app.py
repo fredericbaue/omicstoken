@@ -39,6 +39,7 @@ import summarizer
 import export
 import auth
 import config
+from datetime import datetime
 from worker import queue_embed_run, queue_generate_summary
 from auth import current_active_user, current_active_user_or_token, User
 
@@ -254,6 +255,7 @@ async def upload_handler(request: Request,
     """
     Handles file uploads, detects format, ingests data, and triggers embedding.
     """
+    start_time = datetime.utcnow().isoformat() + "Z"
     # --- Ingest Logic ---
     name = file.filename or "upload.csv"
     
@@ -283,7 +285,8 @@ async def upload_handler(request: Request,
         "run_id": run_id.strip() or None,
         "instrument": instrument.strip() or None,
         "method": method.strip() or None,
-        "original_filename": name
+        "original_filename": name,
+        "upload_started_at": start_time,
     }
     run_id_final = meta_dict.get("run_id") or f"RUN_{pd.Timestamp.utcnow().strftime('%Y%m%d_%H%M%S')}"
 
@@ -309,6 +312,8 @@ async def upload_handler(request: Request,
 
     # --- Background Jobs via Celery ---
     try:
+        queued_time = datetime.utcnow().isoformat() + "Z"
+        db.update_run_meta(con, run_id_final, {"upload_queued_at": queued_time})
         job = queue_embed_run(run_id_final, str(user.id))
         LOGGER.info(
             "Dispatched Celery embed_run_task for run %s (user %s, task_id=%s, broker=%s)",
@@ -527,6 +532,15 @@ def get_run_details(run_id: str, user: User = Depends(current_active_user)):
         cur.execute("SELECT feature_id FROM features WHERE run_id=? LIMIT 1", (run_id,))
         row = cur.fetchone()
         first_feature_id = row[0] if row else None
+        timing_meta = {}
+        if run and run.meta:
+            timing_keys = [
+                "upload_started_at",
+                "upload_queued_at",
+                "embed_completed_at",
+                "time_to_embeddings_sec",
+            ]
+            timing_meta = {k: run.meta.get(k) for k in timing_keys if k in run.meta}
         
         return {
             "run": run,
@@ -534,6 +548,7 @@ def get_run_details(run_id: str, user: User = Depends(current_active_user)):
                 "n_features": n_features,
                 "n_embeddings": n_embeddings
             },
+            "timing": timing_meta or None,
             "links": {
                 "summary": f"/summary/run/{run_id}",
                 "search_example": f"/peptide/search/{run_id}/{first_feature_id}" if first_feature_id else None

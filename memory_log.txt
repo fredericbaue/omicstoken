@@ -1,7 +1,7 @@
-# OmicsToken – Codex Memory Log (Append-Only)
+﻿# OmicsToken â€“ Codex Memory Log (Append-Only)
 
 ---------------------------------------------------------
-## 2025-12-01 – ESM-2 Embeddings Integrated
+## 2025-12-01 â€“ ESM-2 Embeddings Integrated
 - Embedding engine now uses ESM-2 (facebook/esm2_t6_8M_UR50D) with 320-dim output.
 - Implemented in embeddings.py with lazy-loaded tokenizer/model and mean pooling
   over residue tokens.
@@ -11,7 +11,7 @@
   embedding shapes.
 
 ---------------------------------------------------------
-## 2025-11-30 – Fingerprint Endpoint Added
+## 2025-11-30 â€“ Fingerprint Endpoint Added
 - New route: GET /runs/{run_id}/fingerprint.
 - Fetches peptide embeddings for a run and requires at least 4 peptides to avoid
   scikit-learn crashes.
@@ -21,7 +21,7 @@
 - Returns JSON for downstream visualization in the dashboard.
 
 ---------------------------------------------------------
-## 2025-11-30 – Run Comparison Endpoint Added
+## 2025-11-30 â€“ Run Comparison Endpoint Added
 - New route: GET /compare/{run_id_1}/{run_id_2}.
 - Uses DISTINCT annotation_name from features as peptide sequences.
 - Normalizes lists to JSON-safe strings and filters None values.
@@ -33,7 +33,7 @@
 - Returns top 100 items per list for readability.
 
 ---------------------------------------------------------
-## 2025-11-28 – OmicsToken Export v1 Completed
+## 2025-11-28 â€“ OmicsToken Export v1 Completed
 - New route: GET /export/embeddings/{run_id} with response_model=OmicsTokenExportV1.
 - Reads raw embeddings from peptide_embeddings via db.get_peptide_embeddings.
 - Normalizes records into OmicsTokenV1 objects and wraps them in an export
@@ -44,14 +44,14 @@
   - Writes JSON file named {run_id}_omics_export_v1.json into an output directory.
 
 ---------------------------------------------------------
-## 2025-11-27 – Global Index Rebuild Implemented
+## 2025-11-27 â€“ Global Index Rebuild Implemented
 - After embedding peptides, the system calls search.rebuild_faiss_index with the
   DB connection and data directory.
 - FAISS index is built globally from all rows in peptide_embeddings.
 - Ensures cross-run nearest neighbor search is coherent.
 
 ---------------------------------------------------------
-## 2025-11-26 – Background Task Embedding
+## 2025-11-26 â€“ Background Task Embedding
 - Upload handler (/upload) parses CSV/TSV with format auto-detection and uses
   importers.parse_upload to generate Feature objects.
 - Stores run metadata and features in SQLite.
@@ -59,10 +59,10 @@
   blocking the event loop.
 - embed(run_id) reads all features, generates embeddings with peptide_to_vector,
   stores rows in peptide_embeddings, and triggers FAISS index rebuild.
-- Each successful upload increments the user’s credits in users.db.
+- Each successful upload increments the userâ€™s credits in users.db.
 
 ---------------------------------------------------------
-## 2025-11-24 – Peptide Explanation Added
+## 2025-11-24 â€“ Peptide Explanation Added
 - New route: GET /peptide/explain/{run_id}/{feature_id}.
 - Verifies run ownership via current_active_user.
 - Fetches peptide sequence and intensity from features.
@@ -73,16 +73,16 @@
 - Returns structured JSON with peptide metadata, neighbors, and explanation text.
 
 ---------------------------------------------------------
-## 2025-11-20 – Real Dataset Validated
+## 2025-11-20 â€“ Real Dataset Validated
 - First real immuno-peptidomics tumor dataset successfully ingested and processed.
 - Verified:
-  - /upload → features in DB
-  - /peptide/embed/{run_id} → embeddings generated and stored
+  - /upload â†’ features in DB
+  - /peptide/embed/{run_id} â†’ embeddings generated and stored
   - search similarity pipeline
   - basic summaries and dashboards.
 
 ---------------------------------------------------------
-## 2025-11-18 – Architecture Committed
+## 2025-11-18 â€“ Architecture Committed
 - FastAPI selected as main web framework.
 - SQLite selected for MVP storage (immuno.sqlite + users.db).
 - Modularization agreed:
@@ -93,16 +93,16 @@
     fingerprint, export, and dashboard data.
 
 ---------------------------------------------------------
-## 2025-11-15 – Vision Crystallized
+## 2025-11-15 â€“ Vision Crystallized
 - Reframed project as an embedding/tokenization engine for omics, not just a
   one-off analysis pipeline.
 - Immuno-peptidomics selected as the beachhead due to high value and lack of
   existing embedding standards.
 - Confirmed long-term plan:
-  - Lab SaaS → multi-omics embedding platform → tokenized dataset marketplace.
+  - Lab SaaS â†’ multi-omics embedding platform â†’ tokenized dataset marketplace.
 
 ---------------------------------------------------------
-## 2025-11-10 – Project Inception
+## 2025-11-10 â€“ Project Inception
 - Core idea: convert scientific data (starting with peptides) into vectors so
   that semantic search, comparison, and AI interpretation become first-class
   workflows for labs and biotech.
@@ -166,7 +166,7 @@
 ---------------------------------------------------------
 ## 2025-12-01 - Pivot to Product/UX
 - Recorded upcoming structural task 2.6 (request/response logging middleware with redaction & correlation IDs) for later.
-- Added Product/UX section with tasks 4.1–4.4; 4.1 will surface run lists with metadata and links to summary/fingerprint/compare/export flows for scientists.
+- Added Product/UX section with tasks 4.1â€“4.4; 4.1 will surface run lists with metadata and links to summary/fingerprint/compare/export flows for scientists.
 ---------------------------------------------------------
 ## 2025-12-01 - Scientist Run Dashboard (Task 4.1)
 - runs.html now shows status badges (Ready/Processing/Not embedded) based on embedding counts, grouped action buttons (Explore, Maintenance, Danger), and inline hints for incomplete/empty runs.
@@ -176,10 +176,10 @@
 ## 2025-12-01 - Fingerprint Insight Panel (Task 4.2)
 - fingerprint.html now shows an insight summary card (totals, largest/smallest clusters) with PI-friendly phrasing.
 - Cluster rows are clickable; selecting highlights PCA points, dims others, and shows a Selected Cluster panel with stats and a one-line interpretation.
-- Added a short “How to read this” explainer under the PCA plot and navigation links to Runs and Summary.
+- Added a short â€œHow to read thisâ€ explainer under the PCA plot and navigation links to Runs and Summary.
 - Improved error handling: clean messages for 400/404 and graceful skips for missing cluster fields.
 ---------------------------------------------------------
-## 2025-12-01 - Cluster → Peptide Drilldown (Task 4.2.1)
+## 2025-12-01 - Cluster â†’ Peptide Drilldown (Task 4.2.1)
 - Added a drilldown panel in fingerprint.html that shows peptides for the selected cluster with sorting, 50-at-a-time pagination, and dark-theme styling.
 - Selecting a cluster now reveals its peptides (sequence, length, hydrophobicity, intensity) and reuses the PCA highlighting.
 - Improved usability for PIs: see cluster summary, highlight on PCA, and immediately inspect underlying peptides without backend changes.
@@ -199,7 +199,7 @@
 - New programmatic upload endpoint POST /api/runs (supports auto_embed) using existing pipeline; validates ownership and features.
 - CLI scripts/upload_run.py posts runs with features JSON and optional auto-embed using API_TOKEN or --token.
 - Tests (tests/test_api_tokens_and_upload.py) cover token creation response, API token auth for /api/runs, and feature validation.
-## 2025-12-01 � UX.C1 Run List Refactor
+## 2025-12-01 – UX.C1 Run List Refactor
 - Primary actions (Dashboard, Summary, Search) remain visible per run.
 - Secondary/maintenance actions (Fingerprint, Re-embed, Delete) moved into a "More..." dropdown with keyboard + click closing logic.
 - No backend changes; behavior preserved. Front-end only.
@@ -216,12 +216,12 @@
 - Removed stray diff markers in static/explain.html (loadNeighbors, loadExplanation, init); JavaScript now valid and behavior unchanged.
 - search.html left untouched; no backend changes.
 ---------------------------------------------------------
-## 2025-12-01 � UX Deep Linking & Logging Middleware
+## 2025-12-01 – UX Deep Linking & Logging Middleware
 
-- Refined the runs list UI (static/runs.html) so primary actions (Dashboard, Summary, Search) remain visible while secondary actions (Fingerprint, Re-embed, Delete) are consolidated into a �More�� dropdown, reducing clutter and making the main workflow obvious.
+- Refined the runs list UI (static/runs.html) so primary actions (Dashboard, Summary, Search) remain visible while secondary actions (Fingerprint, Re-embed, Delete) are consolidated into a “More…” dropdown, reducing clutter and making the main workflow obvious.
 - Added cross-context deep linking: top peptides in simple_dashboard.html and cluster drilldown peptides in fingerprint.html now link directly into search.html with run_id/feature_id pre-populated and the similarity search + explanation auto-run.
-- Upgraded the upload flow (static/upload.html) to show a guided success funnel after POST /upload, including run ID, rows ingested, and clear CTAs to �Open Run Dashboard� and �Go to My Runs,� plus inline error cards on failure without leaving the page.
-- Introduced a dedicated peptide explanation view (static/explain.html) that is deep-linkable via ?run_id=...&feature_id=..., fetches neighbors and /peptide/explain, and presents an �AI insight sheet� with sequence, properties, neighbors, and a Gemini-labeled explanation.
+- Upgraded the upload flow (static/upload.html) to show a guided success funnel after POST /upload, including run ID, rows ingested, and clear CTAs to “Open Run Dashboard” and “Go to My Runs,” plus inline error cards on failure without leaving the page.
+- Introduced a dedicated peptide explanation view (static/explain.html) that is deep-linkable via ?run_id=...&feature_id=..., fetches neighbors and /peptide/explain, and presents an “AI insight sheet” with sequence, properties, neighbors, and a Gemini-labeled explanation.
 - Implemented request/response logging middleware in app.py that logs method, path, query, status, latency_ms, correlation_id, and best-effort user identifier; correlation IDs are sourced from X-Correlation-ID/X-Request-ID when provided or generated via UUID, attached to request.state and echoed in the response headers.
 ---------------------------------------------------------
 ## 2025-12-02 - Tiny UX Encoding/Copy Polish
@@ -233,14 +233,14 @@
 - Centralized DB path helpers (get_db_path, get_users_db_path) so SQLite paths are no longer hard-coded; user credits now use the resolved users DB path.
 - Observable behavior remains SQLite-by-default; Postgres can be wired later without touching routes.
 ---------------------------------------------------------
-## 2025-12-02 � DB backend prep for Postgres
+## 2025-12-02 – DB backend prep for Postgres
 
 - Introduced DB_BACKEND, DATABASE_URL, and USERS_DATABASE_URL configuration in db.py, defaulting to the existing sqlite behavior.
 - Updated get_db_connection(...) so sqlite is the explicit default and other backends raise a clear NotImplementedError until implemented.
 - Removed hard-coded "data/users.db" in get_user_credits(...) and replaced it with a configurable helper (_get_users_db_path) that still defaults to the legacy path for sqlite.
 - This establishes a single configuration point for the main and user/credits databases, making a future Postgres migration a targeted change instead of a codebase-wide search/rewrite.
 ---------------------------------------------------------
-## 2025-12-02 � Credits UI (monetization surface)
+## 2025-12-02 – Credits UI (monetization surface)
 
 - Made the credits badge on the My Runs page clickable and keyboard-accessible.
 - Added a modal showing the current balance from /runs and explaining that uploads and AI features consume credits; includes a "Coming soon" note for upgrade plans.
@@ -260,3 +260,10 @@
 - Compliance: Added Terms/Privacy placeholders and footer links across UI.
 - Status: Ready for Horizon 1 (UX & Growth).
 ---------------------------------------------------------
+## 2025-12-03 - Pipeline Instrumentation
+- Implemented full timing tracking for the upload -> embed pipeline.
+- Added update_run_meta helper in db.py for safe JSON metadata updates.
+- Instrumented app.py (upload start/queue times) and worker.py (embed duration).
+- Exposed timing object in GET /runs/{run_id} response.
+- Value: Enables 'Time to Insight' metric tracking for investor demos.
+
