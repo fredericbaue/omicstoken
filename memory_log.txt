@@ -267,3 +267,4 @@
 - Exposed timing object in GET /runs/{run_id} response.
 - Value: Enables 'Time to Insight' metric tracking for investor demos.
 
+\n## 2025-12-03 - Horizon 1 (UX + Time-to-Insight) Complete\n- Wrapped UX.C1–C3 and H1–H3 polish: dropdown actions, status labels, drag-drop upload, cross-context search links, post-upload redirect funnel.\n- Added timing instrumentation (upload→embed) and surfaced timing in run details.\n- Standardized Celery worker start on Windows (--pool=solo) via start.bat.\n- MD3 dark theme tokens and dropdown styles consolidated in style.css; search/dashboard links now jump between contexts.\n- Ready for investor demos with Time-to-Insight tracking and streamlined navigation.\n
