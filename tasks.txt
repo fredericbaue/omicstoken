@@ -114,18 +114,22 @@ All code changes must preserve this end-to-end flow.
 
 
 ======================================================================
-## ðŸ§  P3 â€” ADVANCED SCIENTIFIC FEATURES (Future)
+## ?? P3 ? STRUCTURAL VALIDATION & MULTI-MODAL FUSION (Horizon 2)
+# These tasks build the core scientific moat using external data (AlphaFold).
 ======================================================================
 
-[ ] P3.1 STATISTICAL TESTS (t-tests, ANOVA)
-     - Optional downstream analysis modules.
+[ ] P3.1 ALPHA LINK CONNECTOR (Structural Dispatch)
+     - Build dedicated Python logic (e.g., verification.py) to dispatch jobs to the AlphaFold API or custom folding engine.
+     - Add database model (`ProteinStructure`) to store PDB content, pLDDT, and PAE.
 
-[ ] P3.2 GO / PATHWAY ENRICHMENT
-     - Optional biological interpretation module.
+[ ] P3.2 3D VISUALIZATION INTEGRATION
+     - Integrate NGL Viewer/Mol* in the frontend (e.g., dashboard.html or explain.html) to render PDB structures live.
 
-[ ] P3.3 DIFFERENTIAL PEPTIDE ANALYSIS
-     - Later version of the comparison engine.
+[ ] P3.3 MULTI-MODAL DATA FUSION
+     - Refactor search/ranking logic to combine sequence embeddings (ESM-2) with structural data (pLDDT/PAE) for superior similarity scoring.
 
+[ ] P3.4 COMPOSITE VALIDATION REPORT
+     - Update reports to include a "Structural Confidence Score" derived from the pLDDT mean.
 
 ======================================================================
 ## ðŸŒ P4 â€” PLATFORM EXPANSION
@@ -139,6 +143,20 @@ All code changes must preserve this end-to-end flow.
 
 
 ======================================================================
+
+======================================================================
+## ?? P5 ? GENERATIVE BIOLOGY & IP TOKENIZATION (Horizon 3)
+======================================================================
+
+[ ] P5.1 OMICSGEN GENERATIVE ENGINE
+     - Build de novo peptide design loop using proprietary validated structures and embeddings.
+
+[ ] P5.2 STRUCTURAL IP-NFT MARKETPLACE
+     - Design tokenization model for structural datasets and embeddings with privacy-preserving licensing.
+
+[ ] P5.3 PRIVACY-PRESERVING DATA VAULT
+     - Enable secure access patterns (e.g., ZK/proxy re-encryption) for shared vectors without exposing raw data.
+
 ## ðŸ§­ FINISHED TASKS (DONâ€™T MODIFY)
 ======================================================================
 
