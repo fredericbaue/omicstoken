@@ -138,7 +138,13 @@
 
                 <div class="mt-6 pt-4 border-t border-slate-800">
                     <h3 class="text-sm font-semibold text-slate-400 mb-2">Analysis Tools</h3>
-                    <div class="flex gap-3">
+                    <div class="flex gap-3 flex-wrap">
+                        <button
+                            id="foldStructureBtn"
+                            class="px-3 py-1.5 bg-emerald-500/10 border border-emerald-400/40 rounded text-xs text-emerald-100 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-500/20"
+                            type="button">
+                            Fold Structure
+                        </button>
                         <button
                             class="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded text-xs text-slate-500 cursor-not-allowed"
                             title="This control is not wired for the demo yet."
@@ -176,6 +182,77 @@
     <script>
         // --- State ---
         let currentData = [];
+        let selectedFeatureMeta = null;
+        const foldStructureBtn = document.getElementById('foldStructureBtn');
+        const foldBtnDefaultLabel = foldStructureBtn ? foldStructureBtn.textContent.trim() : "Fold Structure";
+
+        function getToken() {
+            return window.localStorage.getItem("token") || "";
+        }
+
+        function authHeaders() {
+            const headers = {};
+            const token = getToken();
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            return headers;
+        }
+
+        function setFoldButtonState(disabled, label) {
+            if (!foldStructureBtn) return;
+            foldStructureBtn.disabled = disabled;
+            foldStructureBtn.textContent = label || foldBtnDefaultLabel;
+            foldStructureBtn.style.opacity = disabled ? "0.5" : "1";
+            foldStructureBtn.style.cursor = disabled ? "not-allowed" : "pointer";
+        }
+
+        async function queueStructureAnalysis() {
+            if (!foldStructureBtn || !selectedFeatureMeta) return;
+            const sequence = selectedFeatureMeta.sequence;
+            if (!sequence) {
+                alert("This feature does not have a valid sequence.");
+                return;
+            }
+
+            const runId = document.getElementById('runIdInput').value.trim();
+            if (!runId) {
+                alert("Please enter a Run ID before triggering structure analysis.");
+                return;
+            }
+
+            const token = getToken();
+            if (!token) {
+                alert("Please log in first (token missing).");
+                return;
+            }
+
+            setFoldButtonState(true, "Queuing...");
+            try {
+                const res = await fetch(
+                    `/runs/${encodeURIComponent(runId)}/features/${encodeURIComponent(selectedFeatureMeta.feature_id)}/structure?engine=mock`,
+                    {
+                        method: "POST",
+                        headers: {
+                            ...authHeaders(),
+                        },
+                    }
+                );
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.detail || JSON.stringify(data));
+                }
+                alert(`Structure analysis started! Task ID: ${data.task_id || "unknown"}`);
+            } catch (err) {
+                console.error(err);
+                alert("Failed to start analysis.");
+            } finally {
+                setFoldButtonState(false);
+            }
+        }
+
+        if (foldStructureBtn) {
+            setFoldButtonState(true);
+            foldStructureBtn.addEventListener("click", queueStructureAnalysis);
+        }
 
         // --- Simulation ---
         function simulateDataLoad() {
@@ -416,6 +493,12 @@
                 const qText = `q: ${p.stats.q_value?.toExponential(2)}`;
                 document.getElementById('detailId').innerText = `${p.feature_id} | ${fcText} | ${qText}`;
             }
+
+            selectedFeatureMeta = {
+                feature_id: p.feature_id,
+                sequence: p.sequence
+            };
+            setFoldButtonState(!p.sequence);
         }
     </script>
 </body>

@@ -1,4 +1,5 @@
 import logging
+import sqlite3
 from datetime import datetime
 
 from celery import Celery
@@ -7,6 +8,7 @@ import config
 import search
 import summarizer
 import db
+from db import insert_protein_structure
 
 LOGGER = logging.getLogger(__name__)
 
@@ -15,6 +17,29 @@ celery_app = Celery(
     broker=config.CELERY_BROKER_URL,
     backend=config.CELERY_RESULT_BACKEND,
 )
+
+
+def _run_structure_analysis(run_id: str, feature_id: str, sequence: str, engine: str = "mock"):
+    """
+    Lightweight placeholder that fabricates structure metadata so Celery plumbing
+    can persist results while the real folding engine is wired up.
+    """
+    safe_sequence = sequence or ""
+    pdb_lines = [
+        f"HEADER    MOCK STRUCTURE RUN {run_id}",
+        f"REMARK    FEATURE {feature_id}",
+        f"REMARK    ENGINE {engine}",
+        f"SEQRES   1 {safe_sequence}",
+        "END",
+    ]
+    pseudo_score = round(min(100.0, 40.0 + len(safe_sequence) * 1.25), 2) if safe_sequence else 0.0
+    return {
+        "pdb_id": f"{run_id}:{feature_id}",
+        "sequence": safe_sequence,
+        "pdb_content": "\n".join(pdb_lines),
+        "plddt_score": pseudo_score,
+        "engine": engine,
+    }
 
 
 @celery_app.task(name="embed_run_task")
@@ -77,6 +102,73 @@ def rebuild_index_task(source_run_id: str = None, owner_id: str = None):
     except Exception as e:
         LOGGER.exception("rebuild_index_task failed (source_run_id=%s): %s", source_run_id, e)
         raise
+
+
+@celery_app.task(name="protein_structure_task")
+def protein_structure_task(run_id: str, feature_id: str, engine: str = "mock"):
+    """
+    Generate/collect protein structure analysis for a peptide and persist it.
+    """
+    LOGGER.info(
+        "protein_structure_task start for run %s feature %s (engine=%s)",
+        run_id,
+        feature_id,
+        engine,
+    )
+    con = db.get_db_connection(config.DATA_DIR)
+    try:
+        feature_props = db.get_feature_properties(con, run_id, feature_id)
+        if not feature_props or not feature_props[0]:
+            LOGGER.warning(
+                "No sequence available for run %s feature %s; skipping structure task",
+                run_id,
+                feature_id,
+            )
+            return {
+                "status": "skipped",
+                "reason": "feature_not_found",
+                "run_id": run_id,
+                "feature_id": feature_id,
+            }
+
+        sequence = feature_props[0]
+        analysis_payload = _run_structure_analysis(run_id, feature_id, sequence, engine)
+        pdb_id = analysis_payload.get("pdb_id") or f"{run_id}:{feature_id}"
+
+        try:
+            insert_protein_structure(
+                con,
+                run_id=run_id,
+                feature_id=feature_id,
+                sequence=analysis_payload["sequence"],
+                pdb_content=analysis_payload["pdb_content"],
+                plddt_score=analysis_payload["plddt_score"],
+                engine=analysis_payload.get("engine", engine),
+            )
+            con.commit()
+            LOGGER.info("Structure saved to database for %s", pdb_id)
+        except sqlite3.Error as db_err:
+            LOGGER.error("Failed to save protein structure for %s: %s", pdb_id, db_err)
+
+        LOGGER.info(
+            "protein_structure_task completed for run %s feature %s", run_id, feature_id
+        )
+        return {
+            **analysis_payload,
+            "run_id": run_id,
+            "feature_id": feature_id,
+            "status": "ok",
+        }
+    except Exception as e:
+        LOGGER.exception(
+            "protein_structure_task failed for run %s feature %s: %s",
+            run_id,
+            feature_id,
+            e,
+        )
+        raise
+    finally:
+        con.close()
 
 
 @celery_app.task(name="generate_summary_task")

@@ -1,0 +1,2373 @@
+# OMICSTOKEN SESSION CONTEXT
+# Generated: 2025-12-04 18:57:55
+# ==========================================
+
+
+# --- FILE: tasks.txt ---
+﻿# OmicsToken â€“ Unified Engineering + UX + CTO Priority Task List
+# Version: 2025-12-02
+# This file consolidates MVP-Critical, Infrastructure, UX, and Productization tasks
+# into a single prioritized roadmap for Codex in VS Code.
+
+======================================================================
+## ðŸ”¥ 0. Absolute Rule (Non-Negotiable)
+NEVER break the pipeline:
+
+Upload â†’ Parse â†’ Store Features â†’ Embed â†’ Store Embeddings â†’ Rebuild Index â†’
+Search â†’ Compare â†’ Summarize â†’ Export.
+
+All code changes must preserve this end-to-end flow.
+======================================================================
+
+
+======================================================================
+## ðŸš¨ P0 â€” CRITICAL FOUNDATION (Required for investors, labs, and scaling)
+======================================================================
+
+[x] P0.1 MIGRATE DATABASE TO POSTGRESQL
+     - Replace SQLite (immuno.sqlite + users.db) with PostgreSQL.
+     - Update DB connections, models, migrations, and thread safety.
+     - Ensure FAISS rebuild still works with new DB structure.
+     [x] Introduce DB_BACKEND config and configurable users DB path (first prep step).
+     - ModelVersion table + model_version_id added to peptide_embeddings; SQLite remains default.
+
+[x] P0.2 CENTRALIZED LOGGING & TRACING
+     - Implement request/response logging middleware.
+     - Add correlation IDs and redact sensitive fields.
+     - Support pluggable log sinks (stdout for now; Sentry later).
+
+[x] P0.3 LEGAL & COMPLIANCE FOUNDATION
+     - Add ToS, Privacy Policy, and Data Processing Policy placeholder files.
+     - Ensure UI links can reference these pages.
+     - Do NOT implement full compliance backend yet.
+     - Placeholder Terms/Privacy pages added with footer links across user pages.
+
+[ ] P0.4 CLOUD FILE STORAGE (S3/Blob)
+     - Store raw uploads in cloud object storage instead of local disk.
+     - Integrate signed URLs for secure download.
+     - Maintain compatibility with existing parsing pipeline.
+
+[x] P0.5 ADVANCED BACKGROUND JOB ENGINE
+     - Replace FastAPI threadpool with Celery/Redis Queue.
+     - Embed â†’ Index rebuild â†’ Summaries must be queued jobs.
+     - Ensure full reproducibility and crash recovery.
+     - Celery worker now queues embed -> rebuild -> summary; API callers unchanged.
+
+
+======================================================================
+## ðŸ’Ž P1 â€” UX/UI PHASE 2.1 (High-impact demo & scientist polish)
+# These tasks dramatically improve user experience without changing the backend.
+======================================================================
+
+### CRITICAL UX (Clutter Reduction & Primary Flow Efficiency)
+
+[x] UX.C1 REFACTOR RUN LIST ACTIONS (static/runs.html)
+     - Consolidate Delete, Fingerprint, Re-embed into a single dropdown.
+     - Keep only â€œDashboardâ€, â€œSummaryâ€, â€œSearchâ€ as primary actions.
+
+[x] UX.C2 SIMPLIFY STATUS LABELS (static/runs.html)
+     - Replace computeStatus logic with clearer statuses:
+       "Ready", "Processing", "Waiting for Embedding".
+
+### HIGH VALUE UX (Flow & Friction Removal)
+
+[x] UX.H1 DRAG-AND-DROP UPLOAD (static/upload.html)
+     - Replace file input with a branded drag-and-drop upload zone.
+     - Add hover/focus visual feedback.
+
+[x] UX.H2 CROSS-CONTEXTUAL SEARCH LINKING
+     - Make peptides clickable everywhere:
+       Dashboard, Fingerprint, Compare.
+     - Clicking automatically loads search.html with run_id + feature_id selected.
+
+[x] UX.H3 POST-UPLOAD FUNNEL
+     - After upload â†’ show success banner â†’ link directly to Runs List.
+     - Remove friction returning to /runs.html.
+
+[x] 1.6 Pipeline Instrumentation (Time-to-Insight tracking)
+
+
+### MEDIUM UX (Trust & Polish)
+
+[ ] UX.M1 TRANSPARENT LLM SUMMARY (static/summary.html)
+     - Add "Powered by Gemini 2.5 Flash".
+     - Include collapsible <details> showing AI context input.
+
+[x] UX.M2 ACTIONABLE CREDITS DISPLAY (static/runs.html)
+     - Clicking Credits badge opens a tooltip/modal with:
+       "Credits consumed per action. Subscription options coming soon."
+
+[ ] UX.M3 DASHBOARD CLEANUP (static/dashboard.html)
+     - Remove or grey out unimplemented controls ("Predict Binding").
+     - Prevent user confusion about non-ready features.
+
+
+======================================================================
+## ðŸ’¼ P2 â€” MONETIZATION & PRODUCTIZATION
+======================================================================
+
+[ ] P2.1 STRIPE PAYMENT INTEGRATION
+     - Add subscription flow + webhook handler.
+     - Tie credits to purchases.
+
+[ ] P2.2 CREDITS PRICING MODEL
+     - Define cost per:
+       Upload, Embedding batch, Similarity search, LLM summary.
+
+[ ] P2.3 USAGE ANALYTICS DASHBOARD
+     - Track per-run and per-user usage.
+     - Show credit consumption and activity heatmap.
+
+
+======================================================================
+## ?? P3 ? STRUCTURAL VALIDATION & MULTI-MODAL FUSION (Horizon 2)
+# These tasks build the core scientific moat using external data (AlphaFold).
+======================================================================
+
+[ ] P3.1 ALPHA LINK CONNECTOR (Structural Dispatch)
+     - Build dedicated Python logic (e.g., verification.py) to dispatch jobs to the AlphaFold API or custom folding engine.
+     - Add database model (`ProteinStructure`) to store PDB content, pLDDT, and PAE.
+
+[ ] P3.2 3D VISUALIZATION INTEGRATION
+     - Integrate NGL Viewer/Mol* in the frontend (e.g., dashboard.html or explain.html) to render PDB structures live.
+
+[ ] P3.3 MULTI-MODAL DATA FUSION
+     - Refactor search/ranking logic to combine sequence embeddings (ESM-2) with structural data (pLDDT/PAE) for superior similarity scoring.
+
+[ ] P3.4 COMPOSITE VALIDATION REPORT
+     - Update reports to include a "Structural Confidence Score" derived from the pLDDT mean.
+
+======================================================================
+## ðŸŒ P4 â€” PLATFORM EXPANSION
+======================================================================
+
+[ ] P4.1 MIGRATE UI TO REACT/NEXT.JS
+     - Replace static/ with full modern SPA/SSR architecture.
+
+[ ] P4.2 MULTI-OMICS TOKENIZATION
+     - Extend embeddings to metabolomics, transcriptomics, proteogenomics.
+
+
+======================================================================
+
+======================================================================
+## ?? P5 ? GENERATIVE BIOLOGY & DATA ASSET (Horizon 3)
+# These tasks create the Trillion-Dollar value proposition.
+======================================================================
+
+[ ] P5.1 OMICSGEN: DE NOVO PEPTIDE DESIGN MODEL
+     - Integrate or fine-tune a Generative AI (e.g., diffusion model) trained on our proprietary database of validated peptides.
+     - Enable users to generate novel binders for specified targets.
+
+[ ] P5.2 DATA ASSET TOKENIZATION (IP-NFT Layer)
+     - Formalize the pipeline to create a secure, hash-based "Proof of Discovery" record for every dataset.
+     - Design the Smart Contract interface logic for licensing/royalty attribution.
+
+[ ] P5.3 BIODIVERSITY PARTNER INGESTION
+     - Onboard the first non-clinical partner (e.g., a Venom/Plant lab) to seed the DeSci marketplace with novel biological IP.
+
+## ðŸ§­ FINISHED TASKS (DONâ€™T MODIFY)
+======================================================================
+
+[x] 1.1 Hardened Export Auth
+[x] 1.2 Hardened FAISS Rebuild
+[x] 1.3 Stabilized ESM-2 Embedding Engine
+[x] 1.4 Background Task & DB Safety
+[x] 1.5 Endpoint Robustness & Ownership Rules
+[x] 2.1 Legacy Table Isolation
+[x] 2.2 Embedder Interface Introduced
+[x] 2.3 Centralized Config & Embedder Factory
+[x] 2.4 Config Defaults Documented
+[x] 2.5 Centralized Logging (Partially Complete)
+[x] 2.6 Add request/response logging middleware with redaction and correlation IDs
+      <!-- Structural: refined logging & diagnostics for later -->
+[x] 4.1 Scientist Run Dashboard MVP
+[x] 4.2 Fingerprint Visualization UI
+[x] A. Tiny UX polish pass (encoding/copy fixes)
+[x] 4.4 Peptide Explanation UI
+[x] 5.1 Multi-Run Export Bundle
+[x] 5.2 Automated Insight Report
+[x] 5.3 API Tokens for Lab Integrations
+
+
+# --- END OF tasks.txt ---
+
+# --- FILE: memory_log.txt ---
+﻿# OmicsToken â€“ Codex Memory Log (Append-Only)
+
+---------------------------------------------------------
+## 2025-12-01 â€“ ESM-2 Embeddings Integrated
+- Embedding engine now uses ESM-2 (facebook/esm2_t6_8M_UR50D) with 320-dim output.
+- Implemented in embeddings.py with lazy-loaded tokenizer/model and mean pooling
+  over residue tokens.
+- Returns a zero vector if the model fails to load or an embedding cannot be
+  generated.
+- EMBEDDING_DIM constant set to 320 and imported throughout the app to validate
+  embedding shapes.
+
+---------------------------------------------------------
+## 2025-11-30 â€“ Fingerprint Endpoint Added
+- New route: GET /runs/{run_id}/fingerprint.
+- Fetches peptide embeddings for a run and requires at least 4 peptides to avoid
+  scikit-learn crashes.
+- Uses KMeans (n_clusters=4) and PCA (2 components) to generate:
+  - cluster summaries (size, mean length, hydrophobicity, intensity)
+  - 2D embedding coordinates with cluster labels.
+- Returns JSON for downstream visualization in the dashboard.
+
+---------------------------------------------------------
+## 2025-11-30 â€“ Run Comparison Endpoint Added
+- New route: GET /compare/{run_id_1}/{run_id_2}.
+- Uses DISTINCT annotation_name from features as peptide sequences.
+- Normalizes lists to JSON-safe strings and filters None values.
+- Computes:
+  - total unique peptides per run
+  - shared peptides
+  - unique peptides per run
+  - Jaccard index across the union.
+- Returns top 100 items per list for readability.
+
+---------------------------------------------------------
+## 2025-11-28 â€“ OmicsToken Export v1 Completed
+- New route: GET /export/embeddings/{run_id} with response_model=OmicsTokenExportV1.
+- Reads raw embeddings from peptide_embeddings via db.get_peptide_embeddings.
+- Normalizes records into OmicsTokenV1 objects and wraps them in an export
+  payload: run_id, total_embeddings, data[].
+- CLI script export_run.py added:
+  - Reads API_TOKEN from env or --token argument.
+  - Calls /export/embeddings/{run_id} with Bearer token.
+  - Writes JSON file named {run_id}_omics_export_v1.json into an output directory.
+
+---------------------------------------------------------
+## 2025-11-27 â€“ Global Index Rebuild Implemented
+- After embedding peptides, the system calls search.rebuild_faiss_index with the
+  DB connection and data directory.
+- FAISS index is built globally from all rows in peptide_embeddings.
+- Ensures cross-run nearest neighbor search is coherent.
+
+---------------------------------------------------------
+## 2025-11-26 â€“ Background Task Embedding
+- Upload handler (/upload) parses CSV/TSV with format auto-detection and uses
+  importers.parse_upload to generate Feature objects.
+- Stores run metadata and features in SQLite.
+- Uses FastAPI BackgroundTasks + run_in_threadpool to call embed(run_id) without
+  blocking the event loop.
+- embed(run_id) reads all features, generates embeddings with peptide_to_vector,
+  stores rows in peptide_embeddings, and triggers FAISS index rebuild.
+- Each successful upload increments the userâ€™s credits in users.db.
+
+---------------------------------------------------------
+## 2025-11-24 â€“ Peptide Explanation Added
+- New route: GET /peptide/explain/{run_id}/{feature_id}.
+- Verifies run ownership via current_active_user.
+- Fetches peptide sequence and intensity from features.
+- Computes basic biophysical properties (length, hydrophobicity, charge).
+- Retrieves similar peptides via search.search_similar_peptides (k=10).
+- Calls Gemini (GOOGLE_API_KEY) to generate a two-paragraph explanation that
+  references sequence, properties, and neighbors.
+- Returns structured JSON with peptide metadata, neighbors, and explanation text.
+
+---------------------------------------------------------
+## 2025-11-20 â€“ Real Dataset Validated
+- First real immuno-peptidomics tumor dataset successfully ingested and processed.
+- Verified:
+  - /upload â†’ features in DB
+  - /peptide/embed/{run_id} â†’ embeddings generated and stored
+  - search similarity pipeline
+  - basic summaries and dashboards.
+
+---------------------------------------------------------
+## 2025-11-18 â€“ Architecture Committed
+- FastAPI selected as main web framework.
+- SQLite selected for MVP storage (immuno.sqlite + users.db).
+- Modularization agreed:
+  - db.py for DB access and schema creation/migrations.
+  - embeddings.py for embedding logic.
+  - auth.py for auth and user management with fastapi-users.
+  - app.py as the main router for upload, embedding, search, comparison, summary,
+    fingerprint, export, and dashboard data.
+
+---------------------------------------------------------
+## 2025-11-15 â€“ Vision Crystallized
+- Reframed project as an embedding/tokenization engine for omics, not just a
+  one-off analysis pipeline.
+- Immuno-peptidomics selected as the beachhead due to high value and lack of
+  existing embedding standards.
+- Confirmed long-term plan:
+  - Lab SaaS â†’ multi-omics embedding platform â†’ tokenized dataset marketplace.
+
+---------------------------------------------------------
+## 2025-11-10 â€“ Project Inception
+- Core idea: convert scientific data (starting with peptides) into vectors so
+  that semantic search, comparison, and AI interpretation become first-class
+  workflows for labs and biotech.
+---------------------------------------------------------
+## 2025-12-01 - Export Auth Hardened (Task 1.1)
+- export_run.py now requires a Bearer token from --token or API_TOKEN env, fails fast when missing, and prints clear messages for 401/404 responses; successful calls still write {run_id}_omics_export_v1.json.
+- Usage: set API_TOKEN in the environment, then run `python scripts/export_run.py <run_id> --base-url http://localhost:8000`; or pass explicitly `python scripts/export_run.py <run_id> --base-url http://localhost:8000 --token YOUR_TOKEN`.
+---------------------------------------------------------
+## 2025-12-01 - FAISS Rebuild Hardened (Task 1.2)
+- search.rebuild_faiss_index now opens a fresh DB connection when None for thread safety, builds into temporary files, and atomically swaps them; failures return 0, log, and leave the prior index intact; empty datasets remove old index artifacts.
+- embed/delete flows now call rebuild with thread-safe connection handling and log failures; re_embed_all script updated to use the hardened rebuild.
+- Added tests (tests/test_rebuild_faiss_index.py) for happy path and simulated write failure.
+- Usage: call search.rebuild_faiss_index(None, DATA_DIR) when running from background threads; index files are replaced only after a successful build.
+---------------------------------------------------------
+## 2025-12-01 - ESM-2 Engine Stabilized (Task 1.3)
+- embeddings.py now caches tokenizer/model globally, normalizes sequences (strip+upper), warns on invalid input, and returns a deterministic 320-dim zero vector on invalid input or model/shape failures.
+- All embeddings enforce EMBEDDING_DIM==320; shape mismatches or HF errors log and fall back to zero without crashing.
+- Added tests (tests/test_embeddings_engine.py) covering valid embeddings, invalid/empty sequences returning zeros, and model/tokenizer caching (single load).
+- Usage: continue calling peptide_to_vector(seq); it now guarantees a float32 vector of length 320 and handles invalid inputs gracefully.
+---------------------------------------------------------
+## 2025-12-01 - Background Tasks Hardened (Task 1.4)
+- Each FAISS rebuild is serialized with a process-level lock; background callers pass None so rebuild opens/closes its own DB connection safely; waits are logged when another rebuild is in progress.
+- embed() now wraps DB work in try/except/finally with rollback-on-error and still triggers thread-safe rebuild; connections always close.
+- Added concurrency test (tests/test_background_db_safety.py) to ensure overlapping rebuilds do not overlap writes and artifacts remain valid.
+- Usage: background tasks should call search.rebuild_faiss_index(None, DATA_DIR); rebuild waits if another is running, then atomically swaps index files.
+---------------------------------------------------------
+## 2025-12-01 - Endpoint Robustness (Task 1.5)
+- All user-scoped routes now enforce run ownership consistently; embedding helper (_embed_run) is shared by the route and background tasks and checks owner IDs, using per-task DB connections with rollback on error.
+- FAISS rebuild remains serialized and is invoked thread-safely after embeds; unexpected failures surface as clean HTTP errors instead of crashes.
+- Added tests (tests/test_endpoint_ownership.py) to cover ownership enforcement for export and embed routes.
+- Usage: routes that touch runs require the authenticated user to own the run; unauthorized access returns 404/403-style HTTPExceptions without leaking details.
+---------------------------------------------------------
+## 2025-12-01 - Legacy Embeddings Isolated (Task 2.1)
+- Marked the old `embeddings` table in db.py as LEGACY/compat-only; canonical flows use `peptide_embeddings` exclusively with clarified docstrings.
+- Active helpers (get_embedding/get_all_embeddings_data/insert_peptide_embedding) target `peptide_embeddings`; legacy insert is labeled to avoid accidental use.
+- Added test (tests/test_legacy_table_isolation.py) to assert canonical getters avoid legacy table usage.
+- Usage: new code must read/write embeddings via peptide_embeddings; legacy table remains only for migration compatibility.
+---------------------------------------------------------
+## 2025-12-01 - Embedder Interface Added (Task 2.2)
+- Added BaseEmbedder interface and Esm2Embedder implementation with cached tokenizer/model, normalized sequences (strip+upper), and deterministic zero-vector fallback; kept EMBEDDING_DIM=320.
+- peptide_to_vector now delegates to a default Esm2Embedder, preserving public behavior while enabling swap-in embedders.
+- Updated tests (tests/test_embeddings_engine.py) to cover the interface, zero-vector fallback, caching, and wrapper behavior.
+- Usage: continue calling peptide_to_vector(seq) or use Esm2Embedder.embed; both return float32 vectors of length 320 with safe fallbacks.
+---------------------------------------------------------
+## 2025-12-01 - Config & Embedder Factory (Task 2.3)
+- Added config.py to centralize DATA_DIR, EMBEDDER_NAME, and ESM model name; app/re_embed_all now import DATA_DIR from config.
+- embeddings.py now uses config for model selection and includes an embedder factory (create_embedder) with Esm2Embedder as the default; peptide_to_vector delegates via the factory.
+- Tests updated (tests/test_embeddings_engine.py) to verify default Esm2 selection, zero-vector fallback, caching, and factory error on unknown embedder.
+- Usage: by default EMBEDDER_NAME=esm2 and ESM_MODEL_NAME=facebook/esm2_t6_8M_UR50D; override via env if future alternate embedders are added.
+---------------------------------------------------------
+## 2025-12-01 - Config Defaults Documented (Task 2.4)
+- config.py now documents defaults for DATA_DIR, EMBEDDER_NAME (default esm2), and ESM_MODEL_NAME; all modules use config for these settings.
+- Added sanity test (tests/test_config_sanity.py) to validate default config import, embedder factory defaulting to Esm2, and DATA_DIR creation.
+- Updated scripts/tests to reference DATA_DIR via config for consistency.
+---------------------------------------------------------
+## 2025-12-01 - Logging Centralized (Task 2.5)
+- Added centralized logging config (config.py) with env-controlled level/format; defaults to INFO and avoids leaking sensitive data.
+- Key pipeline paths now log via module loggers instead of prints (upload, embed/background embedding, rebuilds); warnings/errors use logging consistently.
+- Added sanity test (tests/test_logging_sanity.py) to ensure logging config loads, DATA_DIR is set, and embedder warnings emit logs.
+- Usage: adjust LOG_LEVEL/LOG_FORMAT env vars; default embedder and pipeline behavior unchanged.
+---------------------------------------------------------
+## 2025-12-01 - Pivot to Product/UX
+- Recorded upcoming structural task 2.6 (request/response logging middleware with redaction & correlation IDs) for later.
+- Added Product/UX section with tasks 4.1â€“4.4; 4.1 will surface run lists with metadata and links to summary/fingerprint/compare/export flows for scientists.
+---------------------------------------------------------
+## 2025-12-01 - Scientist Run Dashboard (Task 4.1)
+- runs.html now shows status badges (Ready/Processing/Not embedded) based on embedding counts, grouped action buttons (Explore, Maintenance, Danger), and inline hints for incomplete/empty runs.
+- Added client-side search and status filtering for runs (by run_id/filename/instrument) without backend changes.
+- Styling kept minimal and consistent with the classic UI.
+---------------------------------------------------------
+## 2025-12-01 - Fingerprint Insight Panel (Task 4.2)
+- fingerprint.html now shows an insight summary card (totals, largest/smallest clusters) with PI-friendly phrasing.
+- Cluster rows are clickable; selecting highlights PCA points, dims others, and shows a Selected Cluster panel with stats and a one-line interpretation.
+- Added a short â€œHow to read thisâ€ explainer under the PCA plot and navigation links to Runs and Summary.
+- Improved error handling: clean messages for 400/404 and graceful skips for missing cluster fields.
+---------------------------------------------------------
+## 2025-12-01 - Cluster â†’ Peptide Drilldown (Task 4.2.1)
+- Added a drilldown panel in fingerprint.html that shows peptides for the selected cluster with sorting, 50-at-a-time pagination, and dark-theme styling.
+- Selecting a cluster now reveals its peptides (sequence, length, hydrophobicity, intensity) and reuses the PCA highlighting.
+- Improved usability for PIs: see cluster summary, highlight on PCA, and immediately inspect underlying peptides without backend changes.
+---------------------------------------------------------
+## 2025-12-01 - Multi-Run Export Bundle (Task 5.1)
+- Added POST /export/bundle to package multiple OmicsToken v1 JSON exports into an in-memory ZIP (one file per run + bundle.json manifest) with ownership/embedding validation (all-or-nothing).
+- New CLI scripts/export_bundle.py posts run_ids, saves omics_bundle_<timestamp>.zip, and handles token/env resolution and errors.
+- Tests (tests/test_export_bundle.py) cover unauthorized, success ZIP structure, and incomplete-run 400 responses.
+---------------------------------------------------------
+## 2025-12-01 - Automated Insight Report (Task 5.2)
+- Added GET /report/{run_id} to return a structured insight report (cluster stats, largest/smallest, hydrophobicity patterns, plain-language summary) derived from existing fingerprints with ownership/embedding validation.
+- New frontend viewer /static/report.html to render the report with navigation to Summary/Fingerprint/Compare.
+- Tests (tests/test_report_endpoint.py) cover unauthorized, success, incomplete-run 400, and wrong-owner 404.
+---------------------------------------------------------
+## 2025-12-01 - Programmatic Upload & API Tokens (Task 5.3)
+- Added API tokens: POST /auth/api-tokens returns a one-time plain token (hash stored); DELETE /auth/api-tokens/{id} revokes tokens; auth helper now accepts Bearer API tokens in addition to JWT.
+- New programmatic upload endpoint POST /api/runs (supports auto_embed) using existing pipeline; validates ownership and features.
+- CLI scripts/upload_run.py posts runs with features JSON and optional auto-embed using API_TOKEN or --token.
+- Tests (tests/test_api_tokens_and_upload.py) cover token creation response, API token auth for /api/runs, and feature validation.
+## 2025-12-01 – UX.C1 Run List Refactor
+- Primary actions (Dashboard, Summary, Search) remain visible per run.
+- Secondary/maintenance actions (Fingerprint, Re-embed, Delete) moved into a "More..." dropdown with keyboard + click closing logic.
+- No backend changes; behavior preserved. Front-end only.
+---------------------------------------------------------
+## 2025-12-02 - UX.H2 Cross-Contextual Search Linking
+- Dashboard and fingerprint peptide entries now link to search.html with run_id and feature_id prefilled.
+- search.html auto-selects run/peptide from query params, auto-runs neighbor search, and shows a context banner; manual selection still works.
+- Front-end only; no backend routes or schemas changed.
+---------------------------------------------------------
+## 2025-12-02 - UX.H3 Post-Upload Funnel
+- Upload page now shows a guided success panel with run_id, rows ingested, background embedding note, and direct links to Run Dashboard and My Runs.
+- Errors are shown inline without navigation; form stays usable; no backend changes.
+## 2025-12-02 - Explanation View JS Cleanup
+- Removed stray diff markers in static/explain.html (loadNeighbors, loadExplanation, init); JavaScript now valid and behavior unchanged.
+- search.html left untouched; no backend changes.
+---------------------------------------------------------
+## 2025-12-01 – UX Deep Linking & Logging Middleware
+
+- Refined the runs list UI (static/runs.html) so primary actions (Dashboard, Summary, Search) remain visible while secondary actions (Fingerprint, Re-embed, Delete) are consolidated into a “More…” dropdown, reducing clutter and making the main workflow obvious.
+- Added cross-context deep linking: top peptides in simple_dashboard.html and cluster drilldown peptides in fingerprint.html now link directly into search.html with run_id/feature_id pre-populated and the similarity search + explanation auto-run.
+- Upgraded the upload flow (static/upload.html) to show a guided success funnel after POST /upload, including run ID, rows ingested, and clear CTAs to “Open Run Dashboard” and “Go to My Runs,” plus inline error cards on failure without leaving the page.
+- Introduced a dedicated peptide explanation view (static/explain.html) that is deep-linkable via ?run_id=...&feature_id=..., fetches neighbors and /peptide/explain, and presents an “AI insight sheet” with sequence, properties, neighbors, and a Gemini-labeled explanation.
+- Implemented request/response logging middleware in app.py that logs method, path, query, status, latency_ms, correlation_id, and best-effort user identifier; correlation IDs are sourced from X-Correlation-ID/X-Request-ID when provided or generated via UUID, attached to request.state and echoed in the response headers.
+---------------------------------------------------------
+## 2025-12-02 - Tiny UX Encoding/Copy Polish
+- Cleaned mojibake across runs.html, fingerprint.html, and search.html: credits badge defaults now read "Credits: 0", partial-embedding hint text is readable, Back to Runs button text fixed, and the full explanation link arrow renders correctly.
+- Left all logic and endpoints unchanged; edits were limited to static copy/encoding fixes.
+---------------------------------------------------------
+## 2025-12-02 - DB Backend Config Scaffolding
+- Added DB_BACKEND/DATABASE_URL/USERS_DATABASE_URL configuration in db.py with defaults for SQLite; non-sqlite backends raise a clear error placeholder.
+- Centralized DB path helpers (get_db_path, get_users_db_path) so SQLite paths are no longer hard-coded; user credits now use the resolved users DB path.
+- Observable behavior remains SQLite-by-default; Postgres can be wired later without touching routes.
+---------------------------------------------------------
+## 2025-12-02 – DB backend prep for Postgres
+
+- Introduced DB_BACKEND, DATABASE_URL, and USERS_DATABASE_URL configuration in db.py, defaulting to the existing sqlite behavior.
+- Updated get_db_connection(...) so sqlite is the explicit default and other backends raise a clear NotImplementedError until implemented.
+- Removed hard-coded "data/users.db" in get_user_credits(...) and replaced it with a configurable helper (_get_users_db_path) that still defaults to the legacy path for sqlite.
+- This establishes a single configuration point for the main and user/credits databases, making a future Postgres migration a targeted change instead of a codebase-wide search/rewrite.
+---------------------------------------------------------
+## 2025-12-02 – Credits UI (monetization surface)
+
+- Made the credits badge on the My Runs page clickable and keyboard-accessible.
+- Added a modal showing the current balance from /runs and explaining that uploads and AI features consume credits; includes a "Coming soon" note for upgrade plans.
+- No backend or billing changes; front-end-only monetization surface.
+---------------------------------------------------------
+## 2025-12-02 - P0 Foundation: ModelVersion, Celery, Legal
+
+- Added model_versions table and nullable model_version_id column on peptide_embeddings; embedding flow records the active model version (default esm2/ESM_MODEL_NAME) while keeping SQLite as the default backend.
+- insert_peptide_embedding now accepts an optional model_version_id and safely handles list/ndarray vectors; embeddings capture config.EMBEDDING_MODEL_NAME.
+- Introduced Celery worker tasks (embed_run_task -> rebuild_index_task -> generate_summary_task); /upload and /api/runs dispatch embedding via Celery instead of FastAPI BackgroundTasks.
+- Added placeholder Terms and Privacy pages with footer links on upload, runs, and dashboard views for compliance placeholders.
+---------------------------------------------------------
+## 2025-12-02 - Horizon 0 Complete (Ironclad Foundation)
+- Architecture stabilized: Replaced raw SQLite with SQLAlchemy ORM + Alembic support.
+- Job Engine: Implemented Celery/Redis worker (`worker.py`) and async task dispatching.
+- Testing: Refactored test suite to be fully hermetic (mocks, TestClient). 100% Passing (39 tests).
+- Compliance: Added Terms/Privacy placeholders and footer links across UI.
+- Status: Ready for Horizon 1 (UX & Growth).
+---------------------------------------------------------
+## 2025-12-03 - Pipeline Instrumentation
+- Implemented full timing tracking for the upload -> embed pipeline.
+- Added update_run_meta helper in db.py for safe JSON metadata updates.
+- Instrumented app.py (upload start/queue times) and worker.py (embed duration).
+- Exposed timing object in GET /runs/{run_id} response.
+- Value: Enables 'Time to Insight' metric tracking for investor demos.
+
+\n## 2025-12-03 - Horizon 1 (UX + Time-to-Insight) Complete\n- Wrapped UX.C1–C3 and H1–H3 polish: dropdown actions, status labels, drag-drop upload, cross-context search links, post-upload redirect funnel.\n- Added timing instrumentation (upload→embed) and surfaced timing in run details.\n- Standardized Celery worker start on Windows (--pool=solo) via start.bat.\n- MD3 dark theme tokens and dropdown styles consolidated in style.css; search/dashboard links now jump between contexts.\n- Ready for investor demos with Time-to-Insight tracking and streamlined navigation.\n
+
+# --- END OF memory_log.txt ---
+
+# --- FILE: codex guide.md ---
+# Development Guidelines
+
+## Philosophy
+
+### Core Beliefs
+
+- **Incremental progress over big bangs** - Small changes that compile and pass tests
+- **Learning from existing code** - Study and plan before implementing
+- **Pragmatic over dogmatic** - Adapt to project reality
+- **Clear intent over clever code** - Be boring and obvious
+
+### Simplicity
+
+- **Single responsibility** per function/class
+- **Avoid premature abstractions**
+- **No clever tricks** - choose the boring solution
+- If you need to explain it, it's too complex
+
+## Technical Standards
+
+### Architecture Principles
+
+- **Composition over inheritance** - Use dependency injection
+- **Interfaces over singletons** - Enable testing and flexibility
+- **Explicit over implicit** - Clear data flow and dependencies
+- **Test-driven when possible** - Never disable tests, fix them
+
+### Error Handling
+
+- **Fail fast** with descriptive messages
+- **Include context** for debugging
+- **Handle errors** at appropriate level
+- **Never** silently swallow exceptions
+
+## Project Integration
+
+### Learn the Codebase
+
+- Find similar features/components
+- Identify common patterns and conventions
+- Use same libraries/utilities when possible
+- Follow existing test patterns
+
+### Tooling
+
+- Use project's existing build system
+- Use project's existing test framework
+- Use project's formatter/linter settings
+- Don't introduce new tools without strong justification
+
+### Code Style
+
+- Follow existing conventions in the project
+- Refer to linter configurations and .editorconfig, if present
+- Text files should always end with an empty line
+
+## MCP Tool Use
+
+- Use Context7 to validate current documentation about software libraries
+- Use searxng if your primary Web Search or Fetch tools fail
+- Use Tavily ONLY when searxng doesn't give you enough information
+
+## Important Reminders
+
+**NEVER**:
+- Use `--no-verify` to bypass commit hooks
+- Disable tests instead of fixing them
+- Commit code that doesn't compile
+- Make assumptions - verify with existing code
+
+**ALWAYS**:
+- Commit working code incrementally
+- Update plan documentation as you go
+- Learn from existing implementations
+- Stop after 3 failed attempts and reassess
+
+# --- END OF codex guide.md ---
+
+# --- FILE: db.py ---
+import sqlite3
+import os
+import json
+from typing import List, Dict, Any, Optional, Tuple
+
+import numpy as np
+import models
+import config
+import logging
+
+# --- Configuration ---
+SCHEMA_VERSION = "immuno-0.1.0"
+
+DB_BACKEND = config.DB_BACKEND
+DATABASE_URL = (config.DATABASE_URL or "").strip()
+USERS_DATABASE_URL = os.getenv("USERS_DATABASE_URL", "").strip()
+DEFAULT_DATA_DIR = os.getenv("DATA_DIR", "data")
+
+def get_db_path(data_dir: str) -> str:
+    """Resolve the primary database location for the active backend (SQLite default)."""
+    if DB_BACKEND != "sqlite":
+        raise ValueError(f"DB_BACKEND '{DB_BACKEND}' is not supported yet. Set DB_BACKEND=sqlite until Postgres is implemented.")
+    return os.path.join(data_dir, "immuno.sqlite")
+
+def get_users_db_path(data_dir: Optional[str] = None) -> str:
+    """
+    Resolve the user/credits database path. Defaults to SQLite in DATA_DIR/users.db
+    but can be overridden via USERS_DATABASE_URL for future backends.
+    """
+    if USERS_DATABASE_URL:
+        return USERS_DATABASE_URL
+    base_dir = data_dir or DEFAULT_DATA_DIR
+    return os.path.join(base_dir, "users.db")
+
+def get_db_connection(data_dir: str) -> sqlite3.Connection:
+    """Establishes a connection to the SQLite database and ensures tables exist."""
+    db_path = get_db_path(data_dir)
+    con = sqlite3.connect(db_path)
+    con.execute("PRAGMA foreign_keys = ON") # Enable foreign key constraints
+    _create_tables(con)
+    return con
+
+def _create_tables(con: sqlite3.Connection):
+    """Creates database tables if they do not already exist."""
+    con.execute("""CREATE TABLE IF NOT EXISTS model_versions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        version TEXT NOT NULL,
+        embedding_dim INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(name, version, embedding_dim)
+    )""")
+
+    con.execute("""CREATE TABLE IF NOT EXISTS runs(
+        run_id TEXT PRIMARY KEY,
+        user_id TEXT,
+        instrument TEXT,
+        method TEXT,
+        polarity TEXT,
+        schema_version TEXT,
+        meta_json TEXT,
+        n_features_to_embed INTEGER,
+        n_features_embedded INTEGER
+    )""")
+    
+    con.execute("""CREATE TABLE IF NOT EXISTS features(
+        run_id TEXT,
+        feature_id TEXT,
+        mz REAL,
+        rt_sec REAL,
+        intensity REAL,
+        adduct TEXT,
+        polarity TEXT,
+        annotation_name TEXT, -- Stores peptide sequence
+        annotation_score REAL,
+        meta_json TEXT,
+        PRIMARY KEY(run_id, feature_id),
+        FOREIGN KEY(run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+    )""")
+    
+    # Migration: Attempt to add meta_json column if it doesn't exist
+    try:
+        con.execute("ALTER TABLE features ADD COLUMN meta_json TEXT")
+    except sqlite3.OperationalError:
+        pass # Column likely already exists
+
+    # LEGACY TABLE (do not use for new code paths): kept for backward compatibility/migration only.
+    con.execute("""CREATE TABLE IF NOT EXISTS embeddings(
+        run_id TEXT,
+        feature_id TEXT,
+        method TEXT,
+        polarity TEXT,
+        vec_json TEXT,
+        PRIMARY KEY(run_id, feature_id),
+        FOREIGN KEY(run_id, feature_id) REFERENCES features(run_id, feature_id) ON DELETE CASCADE
+    )""")
+
+    con.execute("""CREATE TABLE IF NOT EXISTS peptide_embeddings(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id TEXT,
+        user_id TEXT,
+        feature_id TEXT, -- Added feature_id
+        sequence TEXT,
+        intensity REAL NOT NULL,
+        length INTEGER,
+        charge INTEGER,
+        hydrophobicity REAL,
+        embedding TEXT, -- JSON list of floats
+        model_version TEXT DEFAULT 'v2_gemini_768', -- Track which model generated this embedding
+        model_version_id INTEGER, -- FK to model_versions.id
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(run_id, feature_id), -- Ensure unique embedding per run and feature
+        FOREIGN KEY(run_id) REFERENCES runs(run_id) ON DELETE CASCADE,
+        FOREIGN KEY(run_id, feature_id) REFERENCES features(run_id, feature_id) ON DELETE CASCADE,
+        FOREIGN KEY(model_version_id) REFERENCES model_versions(id)
+    )""")
+    
+    # Migration: Add model_version column if it doesn't exist
+    try:
+        con.execute("ALTER TABLE peptide_embeddings ADD COLUMN model_version TEXT DEFAULT 'v2_gemini_768'")
+    except sqlite3.OperationalError:
+        pass  # Column likely already exists
+    # Migration: Add model_version_id column if it doesn't exist
+    try:
+        con.execute("ALTER TABLE peptide_embeddings ADD COLUMN model_version_id INTEGER")
+    except sqlite3.OperationalError:
+        pass  # Column likely already exists
+    
+    con.commit()
+
+# --- Helper functions for DB operations ---
+
+def get_or_create_model_version(con: sqlite3.Connection, name: str, version: str, embedding_dim: int) -> int:
+    """
+    Fetch the existing model_version id for a given name/version/dimension or insert a new row.
+    Idempotent and safe to call per embedding run.
+    """
+    cur = con.cursor()
+    cur.execute(
+        "SELECT id FROM model_versions WHERE name=? AND version=? AND embedding_dim=? LIMIT 1",
+        (name, version, embedding_dim),
+    )
+    row = cur.fetchone()
+    if row:
+        return int(row[0])
+
+    cur.execute(
+        "INSERT INTO model_versions(name, version, embedding_dim) VALUES(?,?,?)",
+        (name, version, embedding_dim),
+    )
+    return int(cur.lastrowid)
+
+def insert_run(con: sqlite3.Connection, run_id: str, meta_dict: Dict[str, Any], user_id: Optional[str] = None):
+    """Inserts or replaces a run's metadata into the database."""
+    con.execute(
+        "INSERT OR REPLACE INTO runs(run_id, user_id, instrument, method, polarity, schema_version, meta_json) VALUES(?,?,?,?,?,?,?)",
+        (run_id, user_id, meta_dict.get("instrument"), meta_dict.get("method"), meta_dict.get("polarity"), SCHEMA_VERSION, json.dumps(meta_dict)),
+    )
+
+def insert_feature(con: sqlite3.Connection, run_id: str, feature_data: models.Feature):
+    """Inserts or replaces a feature (peptide) into the database."""
+    con.execute(
+        """INSERT OR REPLACE INTO features(run_id, feature_id, mz, rt_sec, intensity, adduct, polarity, annotation_name, annotation_score, meta_json)
+           VALUES(?,?,?,?,?,?,?,?,?,?)""",
+        (
+            run_id,
+            feature_data.feature_id,
+            feature_data.mz,
+            feature_data.rt_sec,
+            feature_data.intensity,
+            feature_data.adduct,
+            feature_data.polarity,
+            feature_data.peptide_sequence, # Map peptide_sequence to annotation_name DB column
+            feature_data.annotation_score,
+            json.dumps(feature_data.metadata)
+        ),
+    )
+
+def insert_embedding(con: sqlite3.Connection, run_id: str, feature_id: str, method: str, polarity: str, vector: List[float]):
+    """LEGACY: Inserts into the old embeddings table. Avoid in new flows; use insert_peptide_embedding instead."""
+    con.execute(
+        """INSERT OR REPLACE INTO embeddings(run_id, feature_id, method, polarity, vec_json)
+           VALUES(?,?,?,?,?)""",
+        (run_id, feature_id, method, polarity, json.dumps(vector.tolist())),
+    )
+
+def insert_peptide_embedding(
+    con: sqlite3.Connection,
+    run_id: str,
+    user_id: str,
+    feature_id: str,
+    sequence: str,
+    intensity: float, 
+    length: int,
+    charge: int,
+    hydrophobicity: float,
+    vector: np.ndarray,
+    model_version: str = config.EMBEDDING_MODEL_NAME,
+    model_version_id: Optional[int] = None,
+):
+    """Inserts a row into the new peptide_embeddings table."""
+    vector_list = vector.tolist() if hasattr(vector, "tolist") else list(vector)
+    con.execute(
+        """INSERT INTO peptide_embeddings(run_id, user_id, feature_id, sequence, intensity, length, charge, hydrophobicity, embedding, model_version, model_version_id)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            run_id,
+            user_id,
+            feature_id,
+            sequence,
+            intensity,
+            length,
+            charge,
+            hydrophobicity,
+            json.dumps(vector_list),
+            model_version,
+            model_version_id,
+        ),
+    )
+
+def update_run_meta(con: sqlite3.Connection, run_id: str, updates: Dict[str, Any]) -> None:
+    """
+    Safely merge new metadata fields into runs.meta_json for a given run.
+    Parses existing JSON (falls back to empty dict on error), applies a shallow update,
+    and persists the merged document.
+    """
+    cur = con.cursor()
+    cur.execute("SELECT meta_json FROM runs WHERE run_id=?", (run_id,))
+    row = cur.fetchone()
+    existing_meta: Dict[str, Any] = {}
+    if row and row[0]:
+        try:
+            existing_meta = json.loads(row[0]) or {}
+        except Exception as e:
+            logging.warning("Failed to parse meta_json for run %s; overwriting with updates only (%s)", run_id, e)
+            existing_meta = {}
+    merged = {**existing_meta, **(updates or {})}
+    cur.execute("UPDATE runs SET meta_json=? WHERE run_id=?", (json.dumps(merged), run_id))
+    con.commit()
+
+def get_run(con: sqlite3.Connection, run_id: str) -> Optional[models.Run]:
+    """Retrieves a run's metadata."""
+    cur = con.cursor()
+    cur.execute("SELECT run_id, user_id, instrument, method, polarity, schema_version, meta_json FROM runs WHERE run_id=?", (run_id,))
+    row = cur.fetchone()
+    if row:
+        return models.Run(
+            run_id=row[0],
+            user_id=row[1],
+            instrument=row[2],
+            method=row[3],
+            polarity=row[4],
+            schema_version=row[5],
+            meta=json.loads(row[6]) if row[6] else {}
+        )
+    return None
+
+def get_features_for_run(con: sqlite3.Connection, run_id: str) -> List[models.Feature]:
+    """Retrieves all features (peptides) for a given run."""
+    cur = con.cursor()
+    cur.execute("SELECT feature_id, mz, rt_sec, intensity, adduct, polarity, annotation_name, annotation_score, meta_json FROM features WHERE run_id=?", (run_id,))
+    results = []
+    for row in cur.fetchall():
+        meta = json.loads(row[8]) if row[8] else {}
+        results.append(models.Feature(
+            feature_id=row[0], 
+            mz=row[1], 
+            rt_sec=row[2], 
+            intensity=row[3], 
+            adduct=row[4], 
+            polarity=row[5], 
+            peptide_sequence=row[6], 
+            annotation_score=row[7],
+            metadata=meta
+        ))
+    return results
+
+def get_embedding(con: sqlite3.Connection, run_id: str, feature_id: str) -> Optional[List[float]]:
+    """Retrieve a peptide embedding from the canonical peptide_embeddings table."""
+    cur = con.cursor()
+    cur.execute("SELECT embedding FROM peptide_embeddings WHERE run_id=? AND feature_id=?", (run_id, feature_id))
+    row = cur.fetchone()
+    return json.loads(row[0]) if row else None
+
+
+def get_feature_properties(con: sqlite3.Connection, run_id: str, feature_id: str) -> Optional[Tuple[str, float]]:
+    """Retrieves the peptide sequence and intensity for a given feature."""
+    cur = con.cursor()
+    cur.execute("SELECT annotation_name, intensity FROM features WHERE run_id=? AND feature_id=? LIMIT 1", (run_id, feature_id))
+    row = cur.fetchone()
+    return (row[0], row[1]) if row else None
+
+def get_all_embeddings_data(con: sqlite3.Connection) -> List[Tuple[str, str, str]]:
+    """Retrieves all embedding data (run_id, feature_id, embedding) from the canonical peptide_embeddings table."""
+    cur = con.cursor()
+    cur.execute("SELECT run_id, feature_id, embedding FROM peptide_embeddings")
+    return cur.fetchall()
+
+def get_peptide_embeddings(con: sqlite3.Connection, run_id: str) -> List[Dict[str, Any]]:
+    """Retrieves all peptide embeddings for a specific run."""
+    cur = con.cursor()
+    cur.execute("""
+        SELECT feature_id, sequence, intensity, length, charge, hydrophobicity, embedding 
+        FROM peptide_embeddings 
+        WHERE run_id=?
+    """, (run_id,))
+    
+    results = []
+    for row in cur.fetchall():
+        results.append({
+            "feature_id": row[0],
+            "sequence": row[1],
+            "intensity": row[2],
+            "length": row[3],
+            "charge": row[4],
+            "hydrophobicity": row[5],
+            "embedding": json.loads(row[6]) if row[6] else []
+        })
+    return results
+
+def get_run_summaries(con: sqlite3.Connection, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrievels a summary of all runs with feature and embedding counts. Optionally filtered by user_id."""
+    cur = con.cursor()
+    
+    base_query = """
+        SELECT
+            r.run_id,
+            r.instrument,
+            r.method,
+            r.polarity,
+            r.meta_json,
+            (SELECT COUNT(*) FROM features f WHERE f.run_id = r.run_id) as n_features,
+            (SELECT COUNT(*) FROM peptide_embeddings pe WHERE pe.run_id = r.run_id) as n_embeddings
+        FROM
+            runs r
+    """
+    
+    params = []
+    if user_id:
+        base_query += " WHERE r.user_id = ?"
+        params.append(user_id)
+        
+    cur.execute(base_query, tuple(params))
+    
+    results = []
+    for row in cur.fetchall():
+        meta = json.loads(row[4]) if row[4] else {}
+        results.append({
+            "run_id": row[0],
+            "instrument": row[1],
+            "method": row[2],
+            "polarity": row[3],
+            "original_filename": meta.get("original_filename"),
+            "n_features": row[5],
+            "n_embeddings": row[6]
+        })
+    return results
+
+def update_user_credits(con: sqlite3.Connection, user_id: str, amount: int):
+    """
+    Updates the credit balance for a specific user in the separate users.db.
+    Note: This function establishes its own connection to users.db.
+    """
+    try:
+        # Connect directly to the user database
+        with sqlite3.connect(get_users_db_path()) as u_con:
+            u_con.execute("UPDATE user SET credits = credits + ? WHERE id = ?", (amount, user_id))
+            u_con.commit()
+    except Exception as e:
+        # Using logging would be better, but print is fine for now.
+        print(f"Error updating credits for user {user_id}: {e}")
+
+def get_user_credits(con: sqlite3.Connection, user_id: str) -> int:
+    """
+    Fetches the current credit balance for a user from the separate users.db.
+    Note: This function establishes its own connection to users.db.
+    """
+    try:
+        with sqlite3.connect(get_users_db_path()) as u_con:
+            cur = u_con.cursor()
+            cur.execute("SELECT credits FROM user WHERE id = ?", (user_id,))
+            row = cur.fetchone()
+            return row[0] if row else 0
+    except Exception as e:
+        print(f"Error fetching credits for user {user_id}: {e}")
+        return 0
+
+# --- END OF db.py ---
+
+# --- FILE: app.py ---
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, Response
+from fastapi import Request
+from pydantic import BaseModel, Field
+import uvicorn
+import os
+import shutil
+import pandas as pd
+import numpy as np
+import asyncio
+import random
+import inspect
+import time
+import uuid
+import sqlite3
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+
+from typing import List, Optional
+import logging
+from datetime import datetime
+import io
+import zipfile
+import json
+
+import embeddings
+from embeddings import peptide_to_vector, EMBEDDING_DIM
+import db
+import search
+import models
+import importers
+import summarizer
+import export
+import auth
+import config
+from datetime import datetime
+from worker import queue_embed_run, queue_generate_summary
+from auth import current_active_user, current_active_user_or_token, User
+
+LOGGER = logging.getLogger(__name__)
+REQUEST_LOGGER = logging.getLogger("request_logger")
+REQUEST_LOGGER.setLevel(logging.getLevelName(config.LOG_LEVEL))
+
+# --- Configuration ---
+DATA_DIR = config.DATA_DIR
+
+app = FastAPI(title="Immuno-Peptidomics MVP")
+
+# CORS (Optional, good for dev)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+def _get_user_identifier(request: Request) -> str:
+    """Best-effort extraction of a user identifier for logging."""
+    user = getattr(request.state, "user", None)
+    if user is None:
+        return "unknown"
+    return getattr(user, "email", None) or str(getattr(user, "id", "unknown"))
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    correlation_id = (
+        request.headers.get("X-Correlation-ID")
+        or request.headers.get("X-Request-ID")
+        or str(uuid.uuid4())
+    )
+    request.state.correlation_id = correlation_id
+
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        latency_ms = round((time.perf_counter() - start) * 1000, 2)
+        status_code = getattr(exc, "status_code", 500)
+        if status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
+            LOGGER.warning(
+                "Auth failure on %s %s (status=%s, user=%s, correlation_id=%s)",
+                request.method,
+                request.url.path,
+                status_code,
+                _get_user_identifier(request),
+                correlation_id,
+            )
+        payload = {
+            "event": "request_log",
+            "correlation_id": correlation_id,
+            "method": request.method,
+            "path": request.url.path,
+            "query": str(request.url.query),
+            "status": status_code,
+            "latency_ms": latency_ms,
+            "user": _get_user_identifier(request),
+            "error": str(exc),
+        }
+        REQUEST_LOGGER.exception(json.dumps(payload))
+        raise
+
+    latency_ms = round((time.perf_counter() - start) * 1000, 2)
+    response.headers["X-Correlation-ID"] = correlation_id
+    payload = {
+        "event": "request_log",
+        "correlation_id": correlation_id,
+        "method": request.method,
+        "path": request.url.path,
+        "query": str(request.url.query),
+        "status": response.status_code,
+        "latency_ms": latency_ms,
+        "user": _get_user_identifier(request),
+    }
+    REQUEST_LOGGER.info(json.dumps(payload))
+    return response
+
+@app.on_event("startup")
+async def on_startup():
+    await auth.create_db_and_tables()
+    if config.DEMO_MODE:
+        LOGGER.warning("DEMO_MODE is enabled. Seed demo data with scripts/seed_demo_data.py.")
+
+# --- Auth Routes ---
+app.include_router(
+    auth.fastapi_users.get_auth_router(auth.auth_backend),
+    prefix="/auth/jwt",
+    tags=["auth"],
+)
+app.include_router(
+    auth.fastapi_users.get_register_router(auth.UserRead, auth.UserCreate),
+    prefix="/auth",
+    tags=["auth"],
+)
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/docs", status_code=307)
+
+def _embed_run(run_id: str, expected_user_id: Optional[str] = None, trigger_rebuild: bool = True):
+    """Shared embedding worker with ownership enforcement, idempotency, and safe DB handling."""
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        run = db.get_run(con, run_id)
+        if run is None or (expected_user_id is not None and str(run.user_id) != str(expected_user_id)):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+        LOGGER.info("Embedding pipeline start for run %s (user %s)", run_id, run.user_id)
+
+        model_version_id = db.get_or_create_model_version(
+            con,
+            name=config.EMBEDDER_NAME or "esm2",
+            version=config.EMBEDDING_MODEL_NAME,
+            embedding_dim=EMBEDDING_DIM,
+        )
+        features = db.get_features_for_run(con, run_id)
+        if not features:
+            LOGGER.warning("No features found for run %s; skipping embedding.", run_id)
+            return {"run_id": run_id, "peptides_embedded": 0}
+
+        # Idempotency: remove any existing embeddings for this run before re-embedding.
+        con.execute("DELETE FROM peptide_embeddings WHERE run_id=?", (run_id,))
+
+        count = 0
+        total_features = len(features)
+        LOGGER.info("Embedding %s peptides for run %s...", total_features, run_id)
+        for i, feat in enumerate(features):
+            if (i + 1) % 100 == 0:
+                LOGGER.info("Processed %s/%s peptides for run %s", i + 1, total_features, run_id)
+            vec = peptide_to_vector(feat.peptide_sequence)
+
+            if vec is not None and vec.shape[0] == EMBEDDING_DIM:
+                props = calculate_properties(feat.peptide_sequence)
+                try:
+                    db.insert_peptide_embedding(
+                        con,
+                        run_id,
+                        run.user_id,
+                        feat.feature_id,
+                        feat.peptide_sequence,
+                        feat.intensity or 0.0,
+                        props["length"],
+                        props["charge"],
+                        props["hydrophobicity"],
+                        vec,
+                        model_version=config.EMBEDDING_MODEL_NAME,
+                        model_version_id=model_version_id,
+                    )
+                    count += 1
+                except sqlite3.IntegrityError as ie:
+                    LOGGER.warning(
+                        "Duplicate embedding skipped for feature %s in run %s (%s)",
+                        feat.feature_id,
+                        run_id,
+                        ie,
+                    )
+            else:
+                LOGGER.warning(
+                    "Skipping embedding for feature %s in run %s due to invalid sequence/vector.",
+                    feat.feature_id,
+                    run_id,
+                )
+
+        con.commit()
+        LOGGER.info(
+            "Embedding pipeline completed for run %s: stored %s/%s embeddings",
+            run_id,
+            count,
+            total_features,
+        )
+        if trigger_rebuild:
+            try:
+                search.rebuild_faiss_index(None, DATA_DIR, triggered_by_run=run_id)
+                LOGGER.info("FAISS index rebuild completed after embedding run %s", run_id)
+            except Exception as e:
+                LOGGER.exception("FAISS index rebuild failed after embedding run %s: %s", run_id, e)
+        return {"run_id": run_id, "peptides_embedded": count}
+    except HTTPException:
+        con.rollback()
+        raise
+    except Exception as e:
+        con.rollback()
+        LOGGER.exception("Embedding failed for run %s: %s", run_id, e)
+        raise HTTPException(status_code=500, detail="Embedding failed due to an internal error.")
+    finally:
+        con.close()
+
+
+@app.post("/peptide/embed/{run_id}")
+def embed(run_id: str, user: User = Depends(current_active_user)):
+    """Vectorize each peptide in a run and persist the vectors."""
+    return _embed_run(run_id, expected_user_id=str(user.id))
+
+@app.get("/upload", include_in_schema=False)
+def upload_page():
+    return RedirectResponse(url="/static/upload.html")
+
+
+@app.post("/upload", include_in_schema=False)
+async def upload_handler(request: Request,
+                         file: UploadFile = File(...),
+                         run_id: str = Form(""),
+                         instrument: str = Form(""),
+                         method: str = Form(""),
+                         format: str = Form("auto"),
+                         user: User = Depends(current_active_user)):
+    """
+    Handles file uploads, detects format, ingests data, and triggers embedding.
+    """
+    start_time = datetime.utcnow().isoformat() + "Z"
+    # --- Ingest Logic ---
+    name = file.filename or "upload.csv"
+    
+    # 🚨 FIX: Check for common tab-separated extensions (.txt or .tsv)
+    if name.endswith(".tsv") or name.endswith(".txt"):
+        sep = "\t"
+    else:
+        sep = "," # Default to comma for .csv
+        
+    await file.seek(0)
+    
+    try:
+        df = pd.read_csv(file.file, sep=sep)
+    except Exception as e:
+        LOGGER.error("Failed to parse CSV for upload: %s", e)
+        raise HTTPException(400, f"Failed to parse CSV: {e}")
+
+    # Use the importers module to parse the dataframe
+    try:
+        features = importers.parse_upload(df, fmt=format)
+    except Exception as e:
+        LOGGER.error("Import failed for upload: %s", e)
+        raise HTTPException(400, f"Import failed: {e}")
+
+    # Build meta dict
+    meta_dict = {
+        "run_id": run_id.strip() or None,
+        "instrument": instrument.strip() or None,
+        "method": method.strip() or None,
+        "original_filename": name,
+        "upload_started_at": start_time,
+    }
+    run_id_final = meta_dict.get("run_id") or f"RUN_{pd.Timestamp.utcnow().strftime('%Y%m%d_%H%M%S')}"
+
+    # Store in SQLite
+    con = db.get_db_connection(DATA_DIR)
+    db.insert_run(con, run_id_final, meta_dict, user_id=str(user.id))
+
+    for feat in features:
+        db.insert_feature(con, run_id_final, feat)
+        
+    con.commit()
+    db.update_user_credits(con, str(user.id), 10) # Increment credits
+    LOGGER.info("User %s mined 10 credits", user.email)
+    con.close()
+    rows_ingested = len(features)
+    LOGGER.info(
+        "Upload ingested %s features for run %s (user %s, file=%s)",
+        rows_ingested,
+        run_id_final,
+        user.id,
+        name,
+    )
+
+    # --- Background Jobs via Celery ---
+    try:
+        queued_time = datetime.utcnow().isoformat() + "Z"
+        db.update_run_meta(con, run_id_final, {"upload_queued_at": queued_time})
+        job = queue_embed_run(run_id_final, str(user.id))
+        LOGGER.info(
+            "Dispatched Celery embed_run_task for run %s (user %s, task_id=%s, broker=%s)",
+            run_id_final,
+            user.id,
+            job.id,
+            config.CELERY_BROKER_URL,
+        )
+    except Exception as e:
+        LOGGER.exception(
+            "Failed to dispatch Celery embed_run_task for run %s (user %s): %s",
+            run_id_final,
+            user.id,
+            e,
+        )
+        raise HTTPException(status_code=500, detail="Failed to queue embedding job. Please try again later.")
+
+    # --- Success Response ---
+    first_feature_id = features[0].feature_id if features else None
+    
+    return {
+        "status": "success",
+        "run_id": run_id_final,
+        "rows_ingested": rows_ingested,
+        "format": format,
+        "first_feature_id": first_feature_id,
+        "message": "Upload complete and embedding started in background."
+    }
+
+@app.get("/peptide/search/{run_id}/{feature_id}")
+def similar(run_id: str, feature_id: str, k: int = 5, user: User = Depends(current_active_user)):
+    """Find peptides with similar biophysical properties."""
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        run = db.get_run(con, run_id)
+        if run is None or str(run.user_id) != str(user.id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+        return search.search_similar_peptides(con, DATA_DIR, run_id, feature_id, k)
+    except HTTPException as e:
+        raise e
+    finally:
+        con.close()
+
+@app.get("/peptide/explain/{run_id}/{feature_id}")
+def explain_peptide(run_id: str, feature_id: str, user: User = Depends(current_active_user)):
+    """Generate an LLM-powered explanation for a specific peptide."""
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        # Verify run ownership
+        run = db.get_run(con, run_id)
+        if run is None or str(run.user_id) != str(user.id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+        
+        # Get peptide data
+        props = db.get_feature_properties(con, run_id, feature_id)
+        if not props:
+            raise HTTPException(404, "Peptide not found")
+        
+        sequence, intensity = props
+        
+        # Calculate biophysical properties
+        peptide_props = calculate_properties(sequence)
+        
+        # Get similar peptides (k=10 neighbors)
+        similar_peptides_response = search.search_similar_peptides(con, DATA_DIR, run_id, feature_id, k=10)
+        neighbors = similar_peptides_response.neighbors
+        
+        # Prepare neighbor data for LLM
+        neighbors_summary = []
+        for n in neighbors[:5]:  # Top 5 for brevity
+            neighbors_summary.append({
+                "sequence": n.peptide_sequence,
+                "similarity_score": round(n.similarity, 3),
+                "intensity": n.intensity or 0.0
+            })
+        
+        # Build LLM prompt
+        prompt = f"""You are an expert proteomics assistant. A user is looking at a peptide from a mass spectrometry experiment.
+
+Peptide: {sequence}
+Length: {peptide_props['length']} amino acids
+Intensity: {intensity:,.0f}
+Hydrophobicity (GRAVY): {peptide_props['hydrophobicity']}
+Charge: {peptide_props['charge']}
+Similar peptides in this dataset:
+{chr(10).join([f"- {n['sequence']} (similarity: {n['similarity_score']}, intensity: {n.get('intensity', 0):,.0f})" for n in neighbors_summary])}
+
+Explain in 2 short paragraphs what's interesting about this peptide. Mention any obvious biophysical features, whether it looks like a common tryptic peptide (check for K/R cleavage sites), and what the neighbor set suggests (e.g., shared motifs, possible functional or structural similarities). Use accessible scientific language but keep it concise."""
+
+        # Call Gemini API
+        try:
+            import google.generativeai as genai
+            GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+            
+            if not GOOGLE_API_KEY:
+                raise HTTPException(500, "GOOGLE_API_KEY not configured")
+            
+            genai.configure(api_key=GOOGLE_API_KEY)
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content(prompt)
+            explanation = response.text
+            
+        except Exception as e:
+            raise HTTPException(500, f"LLM generation failed: {str(e)}")
+        
+        # Return structured response
+        return {
+            "sequence": sequence,
+            "length": peptide_props['length'],
+            "intensity": intensity,
+            "hydrophobicity": peptide_props['hydrophobicity'],
+            "charge": peptide_props['charge'],
+            "neighbors": neighbors_summary,
+            "explanation": explanation
+        }
+        
+    finally:
+        con.close()
+
+@app.post("/summary/run/{run_id}")
+def get_run_summary(run_id: str, user: User = Depends(current_active_user)):
+    """
+    Generates a text summary of the run using the Summarization Engine.
+    """
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        run = db.get_run(con, run_id)
+        if run is None or str(run.user_id) != str(user.id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+
+        summary_result = None
+        # Prefer Celery to keep the request thread light; fall back inline if the worker is unavailable.
+        try:
+            job = queue_generate_summary(run_id)
+            LOGGER.info(
+                "Dispatched generate_summary_task for run %s from /summary/run (task_id=%s, broker=%s)",
+                run_id,
+                job.id,
+                config.CELERY_BROKER_URL,
+            )
+            try:
+                summary_result = job.get(timeout=60)
+            except Exception as celery_err:
+                LOGGER.warning(
+                    "Celery summary fetch failed for run %s; falling back inline: %s",
+                    run_id,
+                    celery_err,
+                )
+        except Exception as e:
+            LOGGER.warning(
+                "Celery dispatch for summary failed for run %s; falling back inline: %s",
+                run_id,
+                e,
+            )
+
+        if summary_result is None:
+            summary_result = summarizer.generate_summary(run_id, con)
+        return summary_result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Summary generation failed for run %s: %s", run_id, e)
+        raise HTTPException(
+            status_code=500, detail="Summary generation failed due to an internal error."
+        )
+    finally:
+        con.close()
+
+@app.get("/runs")
+def list_runs(user: User = Depends(current_active_user)):
+    """List all runs for the current user."""
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        run_summaries = db.get_run_summaries(con, user_id=str(user.id))
+        user_credits = db.get_user_credits(con, str(user.id))
+        
+        return {
+            "user_credits": user_credits if user_credits is not None else 0,
+            "runs": run_summaries
+        }
+    finally:
+        con.close()
+
+@app.get("/runs/{run_id}")
+def get_run_details(run_id: str, user: User = Depends(current_active_user)):
+    """Get detailed information about a specific run."""
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        run = db.get_run(con, run_id)
+        
+        # If the run doesn't exist or doesn't belong to this user, hide it
+        if run is None or str(run.user_id) != str(user.id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+            
+        # Get counts
+        cur = con.cursor()
+        cur.execute("SELECT COUNT(*) FROM features WHERE run_id=?", (run_id,))
+        n_features = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM peptide_embeddings WHERE run_id=?", (run_id,))
+        n_embeddings = cur.fetchone()[0]
+        
+        # Check for first feature for search link
+        cur.execute("SELECT feature_id FROM features WHERE run_id=? LIMIT 1", (run_id,))
+        row = cur.fetchone()
+        first_feature_id = row[0] if row else None
+        timing_meta = {}
+        if run and run.meta:
+            timing_keys = [
+                "upload_started_at",
+                "upload_queued_at",
+                "embed_completed_at",
+                "time_to_embeddings_sec",
+            ]
+            timing_meta = {k: run.meta.get(k) for k in timing_keys if k in run.meta}
+        
+        return {
+            "run": run,
+            "stats": {
+                "n_features": n_features,
+                "n_embeddings": n_embeddings
+            },
+            "timing": timing_meta or None,
+            "links": {
+                "summary": f"/summary/run/{run_id}",
+                "search_example": f"/peptide/search/{run_id}/{first_feature_id}" if first_feature_id else None
+            }
+        }
+    finally:
+        con.close()
+
+@app.delete("/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_run(run_id: str, background_tasks: BackgroundTasks, user: User = Depends(current_active_user)):
+    """
+    Deletes a run and all its associated data (features, embeddings).
+    """
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        # 1. Verify run ownership
+        run = db.get_run(con, run_id)
+        if run is None or str(run.user_id) != str(user.id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found or you do not have permission to delete it.",
+            )
+
+        # 2. Delete all associated data from tables
+        cur = con.cursor()
+        cur.execute("DELETE FROM runs WHERE run_id=?", (run_id,))
+        cur.execute("DELETE FROM features WHERE run_id=?", (run_id,))
+        cur.execute("DELETE FROM peptide_embeddings WHERE run_id=?", (run_id,))
+        con.commit()
+
+        # 3. Rebuild the search index in the background
+        # This is important to remove the deleted vectors from the search index.
+        background_tasks.add_task(search.rebuild_faiss_index, None, DATA_DIR)
+
+        logging.info(f"User {user.email} deleted run {run_id}.")
+        # No content is returned on success, per HTTP 204.
+
+    finally:
+        con.close()
+
+# In app.py
+
+@app.get("/runs/{run_id}/fingerprint")
+def get_run_fingerprint(run_id: str, user: User = Depends(current_active_user)):
+    """
+    Generates a 'Semantic Fingerprint' for a run, including peptide clustering
+    and a 2D projection.
+    """
+    logging.warning(f"ACCESSING /runs/{run_id}/fingerprint")
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        # 1. Authentication & Authorization
+        run = db.get_run(con, run_id)
+        if run is None or str(run.user_id) != str(user.id):
+            logging.warning(f"Run {run_id} not found or user mismatch.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+
+        # 2. Fetch peptide embeddings for the run
+        peptides = db.get_peptide_embeddings(con, run_id)
+        if not peptides:
+            raise HTTPException(404, "No peptide embeddings found for this run.")
+
+        total_peptides = len(peptides)
+        
+        # 🚨 THE FIX: Minimum sample size check to prevent scikit-learn crash
+        if total_peptides < 4:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Fingerprint requires at least 4 peptides (found {total_peptides}). Please upload more data."
+            )
+        
+        # 3. Sample if necessary (rest of logic remains the same)
+        sample_size = 1000
+        if total_peptides > 2000:
+            peptides_to_cluster = random.sample(peptides, sample_size)
+        else:
+            peptides_to_cluster = peptides
+        
+        # Prepare data for scikit-learn
+        embedding_matrix = np.array([p['embedding'] for p in peptides_to_cluster])
+        
+        # 4. K-means clustering
+        n_clusters = 4 # This could be made dynamic
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
+        cluster_labels = kmeans.fit_predict(embedding_matrix)
+
+        # 5. Compute cluster statistics
+        clusters_summary = []
+        for i in range(n_clusters):
+            # [Logic for calculating cluster means and stats...]
+            cluster_indices = np.where(cluster_labels == i)[0]
+            if not cluster_indices.any():
+                continue
+
+            cluster_peptides = [peptides_to_cluster[j] for j in cluster_indices]
+            
+            mean_length = np.mean([p['length'] for p in cluster_peptides])
+            mean_hydrophobicity = np.mean([p['hydrophobicity'] for p in cluster_peptides])
+            mean_intensity = np.mean([p['intensity'] for p in cluster_peptides])
+
+            clusters_summary.append({
+                "id": i,
+                "size": len(cluster_peptides),
+                "mean_length": round(mean_length, 2),
+                "mean_hydrophobicity": round(mean_hydrophobicity, 4),
+                "mean_intensity": float(mean_intensity)
+            })
+
+        # 6. Dimensionality Reduction for plotting
+        pca = PCA(n_components=2, random_state=42)
+        embedding_2d = pca.fit_transform(embedding_matrix)
+        
+        embedding_2d_with_labels = [
+            {"x": float(point[0]), "y": float(point[1]), "cluster_id": int(label)}
+            for point, label in zip(embedding_2d, cluster_labels)
+        ]
+
+        # 7. Return JSON response
+        return {
+            "run_id": run_id,
+            "total_peptides": total_peptides,
+            "clusters": clusters_summary,
+            "embedding_2d": embedding_2d_with_labels,
+        }
+
+    finally:
+        con.close()
+
+@app.get("/compare/{run_id_1}/{run_id_2}")
+def compare_runs(
+    run_id_1: str,
+    run_id_2: str,
+    user: User = Depends(current_active_user),
+):
+    """
+    Compare two runs based on distinct peptide sequences.
+
+    We use the `annotation_name` column from the `features` table,
+    which is where peptide sequences are stored.
+    """
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        # Access check ― both runs must exist and belong to the current user
+        run1 = db.get_run(con, run_id_1)
+        run2 = db.get_run(con, run_id_2)
+
+        if (
+            run1 is None
+            or run2 is None
+            or str(run1.user_id) != str(user.id)
+            or str(run2.user_id) != str(user.id)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run(s) not found or not owned by current user.",
+            )
+
+        cur = con.cursor()
+
+        # Fetch distinct peptide sequences for run 1
+        cur.execute(
+            "SELECT DISTINCT annotation_name FROM features WHERE run_id=?",
+            (run_id_1,),
+        )
+        raw_1 = [row[0] for row in cur.fetchall()]
+
+        # Fetch distinct peptide sequences for run 2
+        cur.execute(
+            "SELECT DISTINCT annotation_name FROM features WHERE run_id=?",
+            (run_id_2,),
+        )
+        raw_2 = [row[0] for row in cur.fetchall()]
+
+        # Normalize everything to JSON-safe strings and drop None/bytes
+        def normalize_list(raw_list: List[Optional[str]]) -> List[str]:
+            """Filters out None values and ensures all items are strings."""
+            return [
+                str(s) for s in raw_list
+                if s is not None
+            ]
+
+        list_1 = normalize_list(raw_1)
+        list_2 = normalize_list(raw_2)
+
+        seqs_1 = set(list_1)
+        seqs_2 = set(list_2)
+
+        shared = seqs_1 & seqs_2
+        unique_1 = seqs_1 - seqs_2
+        unique_2 = seqs_2 - seqs_1
+
+        union = seqs_1 | seqs_2
+        jaccard = len(shared) / len(union) if len(union) > 0 else 0.0
+
+        return {
+            "run_1": run_id_1,
+            "run_2": run_id_2,
+            "stats": {
+                "total_run_1": len(seqs_1),
+                "total_run_2": len(seqs_2),
+                "shared_count": len(shared),
+                "unique_run_1_count": len(unique_1),
+                "unique_run_2_count": len(unique_2),
+                "jaccard_index": jaccard,
+            },
+            "shared_peptides": list(shared)[:100],
+            "unique_run_1": list(unique_1)[:100],
+            "unique_run_2": list(unique_2)[:100],
+        }
+
+    except HTTPException:
+        # Re-raise known HTTP exceptions unchanged
+        raise
+    except Exception as e:
+        logging.exception(
+            f"Unexpected error while comparing runs {run_id_1} and {run_id_2}: {e}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Compare runs failed due to an internal error.",
+        )
+    finally:
+        con.close()
+
+
+
+
+
+@app.get("/export/embeddings/{run_id}", response_model=models.OmicsTokenExportV1)
+def export_embeddings_v1(run_id: str, user: User = Depends(current_active_user)):
+    """
+    Export peptide embeddings for a specific run in the canonical OmicsToken v1 format.
+
+    Returns:
+        OmicsTokenExportV1:
+            {
+              "run_id": "...",
+              "export_version": "omics_export_v1",
+              "total_embeddings": N,
+              "data": [ OmicsTokenV1, ... ]
+            }
+    """
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        # 1. Verify run ownership
+        run = db.get_run(con, run_id)
+        if run is None or str(run.user_id) != str(user.id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+
+        # 2. Fetch raw embeddings for this run
+        raw_embeddings = db.get_peptide_embeddings(con, run_id)
+        if not raw_embeddings:
+            LOGGER.warning("Export attempted for run %s with no embeddings", run_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No peptide embeddings found for run '{run_id}'.",
+            )
+
+        # 3. Normalize into OmicsToken v1 records
+        canonical_records = export.normalize_to_omics_token_v1(run_id, raw_embeddings)
+
+        if not canonical_records:
+            LOGGER.error(
+                "Export normalization produced no records for run %s (raw count=%s)",
+                run_id,
+                len(raw_embeddings),
+            )
+            # This means every record failed validation; treat as server error
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to normalize peptide embeddings for this run.",
+            )
+
+        # 4. Return standardised response
+        return models.OmicsTokenExportV1(
+            run_id=run_id,
+            total_embeddings=len(canonical_records),
+            data=canonical_records,
+        )
+    finally:
+        con.close()
+
+
+
+class ExportBundleRequest(BaseModel):
+    run_ids: List[str]
+
+
+@app.post("/export/bundle")
+async def export_bundle(payload: ExportBundleRequest, user: User = Depends(current_active_user)):
+    """
+    Export multiple runs as a zip bundle of OmicsToken v1 JSON files.
+    """
+    if not payload.run_ids:
+        raise HTTPException(status_code=400, detail="No run_ids provided.")
+
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        bundle_buffer = io.BytesIO()
+        with zipfile.ZipFile(bundle_buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for run_id in payload.run_ids:
+                run = db.get_run(con, run_id)
+                if run is None or str(run.user_id) != str(user.id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="One or more runs cannot be exported. Check ownership and run status.",
+                    )
+
+                raw_embeddings = db.get_peptide_embeddings(con, run_id)
+                if not raw_embeddings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Run {run_id} is incomplete (no embeddings).",
+                    )
+
+                canonical_records = export.normalize_to_omics_token_v1(run_id, raw_embeddings)
+                if not canonical_records:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Failed to normalize embeddings for run {run_id}.",
+                    )
+
+                payload_json = models.OmicsTokenExportV1(
+                    run_id=run_id,
+                    total_embeddings=len(canonical_records),
+                    data=canonical_records,
+                ).model_dump()
+
+                zf.writestr(f"{run_id}_omics_export_v1.json", json.dumps(payload_json, indent=2))
+
+            bundle_meta = {
+                "run_ids": payload.run_ids,
+                "run_count": len(payload.run_ids),
+                "bundle_created_at": datetime.utcnow().isoformat() + "Z",
+            }
+            zf.writestr("bundle.json", json.dumps(bundle_meta, indent=2))
+
+        bundle_buffer.seek(0)
+        filename = f"omics_bundle_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.zip"
+        return StreamingResponse(
+            bundle_buffer,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    finally:
+        con.close()
+
+# --- API Tokens ---
+
+@app.post("/auth/api-tokens")
+async def create_api_token(label: Optional[str] = None, user: User = Depends(current_active_user)):
+    token_payload = auth.create_api_token_for_user(str(user.id), label=label)
+    if inspect.isawaitable(token_payload):
+        token_payload = await token_payload
+    created_at_raw = token_payload.get("created_at")
+    if isinstance(created_at_raw, str):
+        created_at_iso = created_at_raw
+    elif created_at_raw is not None and hasattr(created_at_raw, "isoformat"):
+        created_at_iso = created_at_raw.isoformat() + "Z"
+    else:
+        created_at_iso = None
+
+    # Return plain token once; do not log it
+    return {
+        "token": token_payload["token"],
+        "token_id": token_payload["token_id"],
+        "label": token_payload.get("label"),
+        "created_at": created_at_iso,
+    }
+
+
+@app.delete("/auth/api-tokens/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_api_token(token_id: int, user: User = Depends(current_active_user)):
+    deleted = await auth.delete_api_token_for_user(str(user.id), token_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Insight Report helpers ---
+
+def _generate_report_from_fingerprint(data: dict) -> dict:
+    total = data.get("total_peptides") or 0
+    clusters = [c for c in data.get("clusters", []) if c and c.get("size") is not None]
+    clusters_sorted = sorted(clusters, key=lambda c: c.get("size", 0), reverse=True)
+
+    def pct(size: int) -> float:
+        return round((size / total) * 100, 1) if total > 0 else 0.0
+
+    def cluster_entry(c):
+        if not c:
+            return None
+        return {
+            "id": c.get("id"),
+            "size": c.get("size"),
+            "pct": pct(c.get("size", 0)),
+            "mean_length": c.get("mean_length"),
+            "mean_hydrophobicity": c.get("mean_hydrophobicity"),
+            "mean_intensity": c.get("mean_intensity"),
+        }
+
+    largest = clusters_sorted[0] if clusters_sorted else None
+    smallest = clusters_sorted[-1] if clusters_sorted else None
+
+    avg_hydro = 0.0
+    if clusters:
+        avg_hydro = sum(c.get("mean_hydrophobicity") or 0 for c in clusters) / len(clusters)
+    hydro_phrase = "skews hydrophobic" if avg_hydro > 0.5 else "appears balanced"
+
+    largest_pct = pct(largest.get("size", 0)) if largest else 0
+    smallest_pct = pct(smallest.get("size", 0)) if smallest else 0
+
+    summary_parts = []
+    if largest:
+        summary_parts.append(f"Most peptides fall into Cluster {largest.get('id')} (~{largest_pct}%).")
+    if smallest:
+        summary_parts.append(f"Smallest cluster is {smallest.get('id')} (~{smallest_pct}%).")
+    summary_parts.append(f"The run {hydro_phrase} overall.")
+
+    return {
+        "run_id": data.get("run_id"),
+        "total_peptides": total,
+        "total_clusters": len(clusters),
+        "largest_cluster": cluster_entry(largest),
+        "smallest_cluster": cluster_entry(smallest),
+        "cluster_overview": [cluster_entry(c) for c in clusters if c],
+        "plain_language_summary": " ".join(summary_parts),
+    }
+
+
+@app.get("/report/{run_id}")
+def get_insight_report(run_id: str, user: User = Depends(current_active_user)):
+    """
+    Return a structured insight report derived from the fingerprint for a run.
+    """
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        run = db.get_run(con, run_id)
+        if run is None or str(run.user_id) != str(user.id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+
+        peptides = db.get_peptide_embeddings(con, run_id)
+        if not peptides or len(peptides) < 4:
+            raise HTTPException(status_code=400, detail="Run does not have enough peptides to build a fingerprint.")
+
+        total_peptides = len(peptides)
+        embedding_matrix = np.array([p['embedding'] for p in peptides])
+
+        n_clusters = min(4, total_peptides)
+        if n_clusters < 1:
+            raise HTTPException(status_code=400, detail="Run does not have enough peptides to build a fingerprint.")
+
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
+        cluster_labels = kmeans.fit_predict(embedding_matrix)
+
+        clusters_summary = []
+        for i in range(n_clusters):
+            cluster_indices = np.where(cluster_labels == i)[0]
+            if not cluster_indices.any():
+                continue
+            cluster_peptides = [peptides[j] for j in cluster_indices]
+            mean_length = np.mean([p['length'] for p in cluster_peptides])
+            mean_hydrophobicity = np.mean([p['hydrophobicity'] for p in cluster_peptides])
+            mean_intensity = np.mean([p['intensity'] for p in cluster_peptides])
+            clusters_summary.append({
+                "id": i,
+                "size": len(cluster_peptides),
+                "mean_length": round(float(mean_length), 2),
+                "mean_hydrophobicity": round(float(mean_hydrophobicity), 4),
+                "mean_intensity": float(mean_intensity),
+            })
+
+        pca = PCA(n_components=2, random_state=42)
+        embedding_2d = pca.fit_transform(embedding_matrix)
+        embedding_2d_with_labels = [
+            {
+                "x": float(point[0]),
+                "y": float(point[1]),
+                "cluster_id": int(label),
+                "sequence": peptides[idx]["sequence"],
+                "length": peptides[idx]["length"],
+                "hydrophobicity": peptides[idx]["hydrophobicity"],
+                "intensity": peptides[idx]["intensity"],
+            }
+            for idx, (point, label) in enumerate(zip(embedding_2d, cluster_labels))
+        ]
+
+        fingerprint_payload = {
+            "run_id": run_id,
+            "total_peptides": total_peptides,
+            "clusters": clusters_summary,
+            "embedding_2d": embedding_2d_with_labels,
+        }
+
+        return _generate_report_from_fingerprint(fingerprint_payload)
+    except HTTPException:
+        raise
+    except Exception as e:
+        LOGGER.exception(f"Failed to build report for run {run_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate report.")
+    finally:
+        con.close()
+
+
+# --- Programmatic run upload ---
+
+class UploadFeature(BaseModel):
+    feature_id: str
+    sequence: str
+    intensity: Optional[float] = 0.0
+    length: Optional[int] = 0
+    charge: Optional[int] = 0
+    hydrophobicity: Optional[float] = 0.0
+
+
+class UploadRunRequest(BaseModel):
+    name: Optional[str] = None
+    metadata: Optional[dict] = None
+    features: List[UploadFeature]
+    auto_embed: Optional[bool] = False
+
+
+@app.post("/api/runs")
+def create_run_api(payload: UploadRunRequest, user: User = Depends(current_active_user_or_token)):
+    if not payload.features:
+        raise HTTPException(status_code=400, detail="Features are required.")
+
+    run_id = f"RUN_{datetime.utcnow().strftime('%Y%m%d_%H%M%S%f')}"
+    meta_dict = payload.metadata or {}
+    if payload.name:
+        meta_dict["name"] = payload.name
+
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        db.insert_run(con, run_id, meta_dict, user_id=str(user.id))
+
+        for feat in payload.features:
+            feature_model = models.Feature(
+                feature_id=feat.feature_id,
+                mz=0.0,
+                rt_sec=None,
+                intensity=feat.intensity or 0.0,
+                adduct=None,
+                polarity=None,
+                peptide_sequence=feat.sequence,
+                annotation_score=None,
+                metadata={
+                    "length": feat.length,
+                    "charge": feat.charge,
+                    "hydrophobicity": feat.hydrophobicity,
+                },
+            )
+            db.insert_feature(con, run_id, feature_model)
+
+        con.commit()
+
+        if payload.auto_embed:
+            try:
+                job = queue_embed_run(run_id, str(user.id))
+                LOGGER.info(
+                    "Dispatched Celery embed_run_task for run %s (user %s) via API (task_id=%s, broker=%s)",
+                    run_id,
+                    user.id,
+                    job.id,
+                    config.CELERY_BROKER_URL,
+                )
+            except Exception as e:
+                LOGGER.exception(
+                    "Failed to dispatch Celery embed_run_task for run %s (user %s): %s",
+                    run_id,
+                    user.id,
+                    e,
+                )
+                raise HTTPException(status_code=500, detail="Failed to queue embedding job.")
+
+        return {
+            "run_id": run_id,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+            "auto_embed": bool(payload.auto_embed),
+        }
+    except HTTPException:
+        con.rollback()
+        raise
+    except Exception as e:
+        con.rollback()
+        LOGGER.exception("Failed to create run via API: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to create run.")
+    finally:
+        con.close()
+
+# --- Biophysics Logic ---
+from collections import Counter
+
+HYDROPHOBICITY_SCALE = {
+    'A': 1.8, 'R': -4.5, 'N': -3.5, 'D': -3.5, 'C': 2.5, 'Q': -3.5, 'E': -3.5,
+    'G': -0.4, 'H': -3.2, 'I': 4.5, 'L': 3.8, 'K': -3.9, 'M': 1.9, 'F': 2.8,
+    'P': -1.6, 'S': -0.8, 'T': -0.7, 'W': -0.9, 'Y': -1.3, 'V': 4.2
+}
+
+def calculate_properties(sequence: str):
+    if not sequence:
+        return {"hydrophobicity": 0, "molecular_weight": 0, "charge": 0, "length": 0}
+    
+    # Filter for valid amino acids only for hydrophobicity calculation to avoid errors
+    valid_seq = [aa for aa in sequence.upper() if aa in HYDROPHOBICITY_SCALE]
+    hydro = sum(HYDROPHOBICITY_SCALE.get(aa, 0) for aa in valid_seq) / len(valid_seq) if valid_seq else 0
+    
+    mw = export.calculate_molecular_weight(sequence)
+    pos = sum(sequence.upper().count(aa) for aa in ['K', 'R', 'H'])
+    neg = sum(sequence.upper().count(aa) for aa in ['D', 'E'])
+    return {"hydrophobicity": round(hydro, 2), "molecular_weight": mw, "charge": pos - neg, "length": len(sequence)}
+
+@app.get("/dashboard-data/{run_id}")
+def get_dashboard_data(run_id: str, user: User = Depends(current_active_user)):
+    """
+    Fetches features, calculates biophysical properties, and returns top 500 features.
+    """
+    con = db.get_db_connection(DATA_DIR)
+    try:
+        run = db.get_run(con, run_id)
+        if run is None or str(run.user_id) != str(user.id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Run not found",
+            )
+
+        features = db.get_features_for_run(con, run_id)
+        if not features:
+            raise HTTPException(404, "Run not found or empty")
+        
+        # Sort by intensity descending
+        # Sort by intensity descending (robust to None)
+        features.sort(key=lambda x: (x.intensity is None, x.intensity or 0), reverse=True)
+        top_features = features[:500]
+        
+        results = []
+        for f in top_features:
+            props = calculate_properties(f.peptide_sequence)
+            
+            # Extract stats from metadata if available
+            meta = f.metadata or {}
+            fc = meta.get("fold_change")
+            qval = meta.get("q_value")
+            pval = meta.get("p_value")
+            
+            results.append({
+                "feature_id": f.feature_id,
+                "sequence": f.peptide_sequence,
+                "intensity": f.intensity,
+                "properties": props,
+                "stats": {
+                    "fold_change": fc,
+                    "q_value": qval,
+                    "p_value": pval
+                }
+            })
+            
+        return {
+            "run_id": run_id,
+            "total_features": len(features),
+            "data": results
+        }
+    finally:
+        con.close()
+
+# Mount static files (must be after all routes)
+app.mount("/static", StaticFiles(directory="static", html=True), name="static")
+
+if __name__ == "__main__":
+    # This block allows running the app directly with `python app.py`
+    # It will start the server on http://127.0.0.1:8080, which matches
+    # the desired port for development and testing.
+    uvicorn.run("app:app", host="127.0.0.1", port=8080, reload=True)
+
+# --- END OF app.py ---
+
+# --- FILE: worker.py ---
+import logging
+from datetime import datetime
+
+from celery import Celery
+
+import config
+import search
+import summarizer
+import db
+
+LOGGER = logging.getLogger(__name__)
+
+celery_app = Celery(
+    "omicstoken_worker",
+    broker=config.CELERY_BROKER_URL,
+    backend=config.CELERY_RESULT_BACKEND,
+)
+
+
+@celery_app.task(name="embed_run_task")
+def embed_run_task(run_id: str, owner_id: str):
+    try:
+        from app import _embed_run  # Local import to avoid circular dependencies
+        LOGGER.info("embed_run_task start for run %s (owner %s)", run_id, owner_id)
+        result = _embed_run(run_id=run_id, expected_user_id=owner_id, trigger_rebuild=False)
+        if result.get("peptides_embedded", 0) > 0:
+            rebuild_job = queue_rebuild_index(run_id, owner_id)
+            LOGGER.info(
+                "Queued rebuild_index_task for run %s (task_id=%s)", run_id, getattr(rebuild_job, "id", None)
+            )
+            summary_job = queue_generate_summary(run_id)
+            LOGGER.info(
+                "Queued generate_summary_task for run %s (task_id=%s)", run_id, getattr(summary_job, "id", None)
+            )
+        try:
+            completion_time = datetime.utcnow().isoformat() + "Z"
+            con = db.get_db_connection(config.DATA_DIR)
+            start_time = None
+            run = db.get_run(con, run_id)
+            if run and getattr(run, "meta", None):
+                start_time = run.meta.get("upload_started_at")
+            duration = None
+            if start_time:
+                try:
+                    started_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                    completed_dt = datetime.fromisoformat(completion_time.replace("Z", "+00:00"))
+                    duration = (completed_dt - started_dt).total_seconds()
+                except Exception as parse_err:
+                    LOGGER.warning("Failed to parse upload_started_at for run %s: %s", run_id, parse_err)
+            update_payload = {"embed_completed_at": completion_time}
+            if duration is not None:
+                update_payload["time_to_embeddings_sec"] = duration
+            db.update_run_meta(con, run_id, update_payload)
+            con.close()
+        except Exception as timing_err:
+            LOGGER.warning("Failed to record timing metadata for run %s: %s", run_id, timing_err)
+        LOGGER.info("embed_run_task completed for run %s (owner %s)", run_id, owner_id)
+        return result
+    except Exception as e:
+        LOGGER.exception("embed_run_task failed for run %s (owner %s): %s", run_id, owner_id, e)
+        raise
+
+
+@celery_app.task(name="rebuild_index_task")
+def rebuild_index_task(source_run_id: str = None, owner_id: str = None):
+    try:
+        LOGGER.info(
+            "rebuild_index_task start (source_run_id=%s, owner_id=%s)", source_run_id, owner_id
+        )
+        n_vectors = search.rebuild_faiss_index(None, config.DATA_DIR, source_run_id)
+        LOGGER.info(
+            "FAISS index rebuilt with %s vectors (source_run_id=%s)",
+            n_vectors,
+            source_run_id,
+        )
+        return {"status": "ok", "n_vectors": n_vectors}
+    except Exception as e:
+        LOGGER.exception("rebuild_index_task failed (source_run_id=%s): %s", source_run_id, e)
+        raise
+
+
+@celery_app.task(name="generate_summary_task")
+def generate_summary_task(run_id: str):
+    try:
+        LOGGER.info("generate_summary_task start for run %s", run_id)
+        summary = summarizer.generate_summary(run_id)
+        LOGGER.info("generate_summary_task completed for run %s", run_id)
+        return summary
+    except Exception as e:
+        LOGGER.exception("generate_summary_task failed for run %s: %s", run_id, e)
+        raise
+
+
+def queue_embed_run(run_id: str, owner_id: str):
+    LOGGER.info(
+        "queue_embed_run called for run %s (owner %s, broker=%s)",
+        run_id,
+        owner_id,
+        config.CELERY_BROKER_URL,
+    )
+    try:
+        job = celery_app.send_task("embed_run_task", args=[run_id, owner_id])
+        LOGGER.info(
+            "embed_run_task dispatched for run %s (owner %s, task_id=%s, broker=%s)",
+            run_id,
+            owner_id,
+            job.id,
+            config.CELERY_BROKER_URL,
+        )
+        return job
+    except Exception as exc:
+        LOGGER.error(
+            "Failed to dispatch embed_run_task for run %s (owner %s, broker=%s): %s",
+            run_id,
+            owner_id,
+            config.CELERY_BROKER_URL,
+            exc,
+        )
+        raise RuntimeError(
+            f"Failed to queue embed_run_task for run {run_id} (owner {owner_id})."
+        ) from exc
+
+
+def queue_rebuild_index(source_run_id: str = None, owner_id: str = None):
+    LOGGER.info(
+        "queue_rebuild_index called (source_run_id=%s, owner_id=%s, broker=%s)",
+        source_run_id,
+        owner_id,
+        config.CELERY_BROKER_URL,
+    )
+    try:
+        job = celery_app.send_task("rebuild_index_task", args=[source_run_id, owner_id])
+        LOGGER.info(
+            "rebuild_index_task dispatched (source_run_id=%s, owner_id=%s, task_id=%s, broker=%s)",
+            source_run_id,
+            owner_id,
+            job.id,
+            config.CELERY_BROKER_URL,
+        )
+        return job
+    except Exception as exc:
+        LOGGER.error(
+            "Failed to dispatch rebuild_index_task (source_run_id=%s, owner_id=%s, broker=%s): %s",
+            source_run_id,
+            owner_id,
+            config.CELERY_BROKER_URL,
+            exc,
+        )
+        raise RuntimeError(
+            f"Failed to queue rebuild_index_task for source_run_id={source_run_id or 'unknown'}."
+        ) from exc
+
+
+def queue_generate_summary(run_id: str):
+    LOGGER.info(
+        "queue_generate_summary called for run %s (broker=%s)", run_id, config.CELERY_BROKER_URL
+    )
+    try:
+        job = celery_app.send_task("generate_summary_task", args=[run_id])
+        LOGGER.info(
+            "generate_summary_task dispatched for run %s (task_id=%s, broker=%s)",
+            run_id,
+            job.id,
+            config.CELERY_BROKER_URL,
+        )
+        return job
+    except Exception as exc:
+        LOGGER.error(
+            "Failed to dispatch generate_summary_task for run %s (broker=%s): %s",
+            run_id,
+            config.CELERY_BROKER_URL,
+            exc,
+        )
+        raise RuntimeError(f"Failed to queue generate_summary_task for run {run_id}.") from exc
+
+# --- END OF worker.py ---
+
+# --- FILE: requirements.txt ---
+fastapi
+uvicorn
+python-multipart
+pandas
+numpy
+scikit-learn
+faiss-cpu
+google-generativeai>=0.3.0
+httpx
+python-dotenv
+fastapi-users[sqlalchemy]
+passlib[bcrypt]
+aiosqlite
+requests
+transformers
+sentencepiece
+torch
+greenlet
+argon2-cffi
+celery
+redis
+
+# --- END OF requirements.txt ---

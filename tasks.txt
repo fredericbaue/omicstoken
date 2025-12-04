@@ -145,17 +145,20 @@ All code changes must preserve this end-to-end flow.
 ======================================================================
 
 ======================================================================
-## ?? P5 ? GENERATIVE BIOLOGY & IP TOKENIZATION (Horizon 3)
+## ?? P5 ? GENERATIVE BIOLOGY & DATA ASSET (Horizon 3)
+# These tasks create the Trillion-Dollar value proposition.
 ======================================================================
 
-[ ] P5.1 OMICSGEN GENERATIVE ENGINE
-     - Build de novo peptide design loop using proprietary validated structures and embeddings.
+[ ] P5.1 OMICSGEN: DE NOVO PEPTIDE DESIGN MODEL
+     - Integrate or fine-tune a Generative AI (e.g., diffusion model) trained on our proprietary database of validated peptides.
+     - Enable users to generate novel binders for specified targets.
 
-[ ] P5.2 STRUCTURAL IP-NFT MARKETPLACE
-     - Design tokenization model for structural datasets and embeddings with privacy-preserving licensing.
+[ ] P5.2 DATA ASSET TOKENIZATION (IP-NFT Layer)
+     - Formalize the pipeline to create a secure, hash-based "Proof of Discovery" record for every dataset.
+     - Design the Smart Contract interface logic for licensing/royalty attribution.
 
-[ ] P5.3 PRIVACY-PRESERVING DATA VAULT
-     - Enable secure access patterns (e.g., ZK/proxy re-encryption) for shared vectors without exposing raw data.
+[ ] P5.3 BIODIVERSITY PARTNER INGESTION
+     - Onboard the first non-clinical partner (e.g., a Venom/Plant lab) to seed the DeSci marketplace with novel biological IP.
 
 ## ðŸ§­ FINISHED TASKS (DONâ€™T MODIFY)
 ======================================================================
