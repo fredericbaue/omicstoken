@@ -1,136 +1,283 @@
 <!DOCTYPE html>
-<!-- UX.H1: Drag-and-drop upload zone implemented (CTO/UX pass) -->
 <html>
 <head>
     <title>Upload Run - Immuno-Engine</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
-        .app-bar {
+        :root {
+            --shell-bg: rgba(15, 23, 42, 0.92);
+            --shell-border: rgba(148, 163, 184, 0.35);
+            --text-body: #e5e7eb;
+            --muted: rgba(226, 232, 240, 0.7);
+            --hero-shadow: 0 24px 60px rgba(15, 23, 42, 0.85);
+        }
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top, #0f172a 0%, #020617 55%, #000 100%);
+            color: var(--text-body);
+            font-family: "Inter", "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .upload-page {
+            min-height: 100vh;
             display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            gap: 1rem;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1.5rem 3rem;
+        }
+        .upload-shell {
+            width: 100%;
+            max-width: 780px;
+        }
+        .upload-header {
             margin-bottom: 1.5rem;
         }
-        .app-title {
+        .upload-header h1 {
             margin: 0;
-            font-size: 2rem;
+            font-size: 1.9rem;
+            letter-spacing: 0.02em;
             font-weight: 600;
         }
-        .app-tagline {
-            margin: 0.35rem 0 0;
-            color: var(--text-secondary);
+        .upload-subtitle {
+            margin: 0.45rem 0 0;
+            font-size: 0.95rem;
+            color: var(--muted);
         }
-        .dimmed { opacity: 0.5; pointer-events: none; }
-        .status-card { margin-top: 1rem; }
-        .success-panel { margin-top: 1.5rem; }
-        .status-text { margin: 0; color: var(--text-secondary); }
-        .status-strong { color: var(--text-primary); font-weight: 600; }
-        .error-card { border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
-        .success-note { color: var(--text-secondary); margin-top: 0.25rem; }
-        .dropzone {
-            border: 2px dashed var(--border-color);
-            border-radius: 14px;
-            padding: 1.5rem;
-            background: rgba(15, 23, 42, 0.35);
+        .upload-card {
+            border-radius: 22px;
+            padding: 2rem 2rem 1.75rem;
+            background: var(--shell-bg);
+            border: 1px solid var(--shell-border);
+            box-shadow: var(--hero-shadow);
+            backdrop-filter: blur(18px);
+        }
+        .hero-dropzone {
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 1.75rem 2rem;
+            background: radial-gradient(circle at top left, rgba(118, 169, 250, 0.18), transparent 55%),
+                        radial-gradient(circle at bottom right, rgba(148, 163, 184, 0.16), transparent 60%),
+                        rgba(15, 23, 42, 0.96);
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
             cursor: pointer;
-            transition: background 0.2s ease, border-color 0.2s ease;
-            text-align: center;
+            transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background 150ms ease;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 1.25rem;
         }
-        .dropzone.drag-over {
-            background: rgba(99, 102, 241, 0.15);
-            border-color: rgba(99, 102, 241, 0.6);
+        .hero-dropzone:hover,
+        .hero-dropzone:focus-within {
+            transform: translateY(-2px);
+            border-color: rgba(129, 140, 248, 0.75);
+            background: radial-gradient(circle at top left, rgba(129, 140, 248, 0.28), transparent 55%),
+                        radial-gradient(circle at bottom right, rgba(148, 163, 184, 0.25), transparent 60%),
+                        rgba(15, 23, 42, 0.98);
+            box-shadow: 0 28px 70px rgba(15, 23, 42, 0.9);
         }
-        .dropzone input[type="file"] {
+        #dropzone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .hero-dropzone-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(148, 163, 184, 0.7);
+            background: rgba(2, 6, 23, 0.75);
+            font-size: 1.4rem;
+        }
+        .hero-dropzone-copy {
+            flex: 1;
+            text-align: left;
+        }
+        .dz-title {
+            margin: 0 0 0.2rem;
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+        .dz-subtitle {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+        .dz-label {
+            margin: 0.5rem 0 0;
+            font-size: 0.78rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            opacity: 0.7;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+        .btn.btn-primary {
+            border-radius: 999px;
+            padding: 0.8rem 1.6rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            background: linear-gradient(135deg, #6366f1, #22c1c3);
+            border: none;
+            box-shadow: 0 22px 45px rgba(79, 70, 229, 0.55);
+            width: 100%;
+            justify-content: center;
+            transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+        }
+        .btn.btn-primary:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+            box-shadow: 0 28px 60px rgba(79, 70, 229, 0.75);
+        }
+        #toggleAdvancedOptions {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.82rem;
+            color: rgba(129, 140, 248, 0.95);
+            text-decoration: none;
+            margin-top: 0.85rem;
+        }
+        #toggleAdvancedOptions::after {
+            content: '93';
+            font-size: 0.85rem;
+            transition: transform 150ms ease;
+        }
+        #toggleAdvancedOptions.open::after {
+            transform: rotate(180deg);
+        }
+        #advancedOptions {
             display: none;
-        }
-        #fileInput {
-            display: none;
-        }
-        .dropzone p {
-            margin: 0.4rem 0 0;
-            color: var(--text-secondary);
-        }
-        .file-label {
             margin-top: 0.75rem;
+            padding: 1rem 1.1rem 1.1rem;
+            border-radius: 16px;
+            border: 1px dashed rgba(148, 163, 184, 0.6);
+            background: rgba(15, 23, 42, 0.92);
+        }
+        #advancedOptions label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: rgba(226, 232, 240, 0.85);
+        }
+        #advancedOptions input,
+        #advancedOptions select {
+            width: 100%;
+            border-radius: 10px;
+            background: rgba(2, 6, 23, 0.7);
+            border: 1px solid rgba(51, 65, 85, 0.9);
+            padding: 0.45rem 0.6rem;
+            color: var(--text-body);
             font-size: 0.9rem;
-            color: var(--text-muted);
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.9rem;
+        }
+        .upload-status,
+        .upload-success,
+        .upload-error {
+            border-radius: 16px;
+            padding: 1rem 1.15rem;
+            margin-top: 1.25rem;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .upload-status {
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid rgba(148, 163, 184, 0.5);
+        }
+        .upload-success {
+            background: rgba(22, 101, 52, 0.24);
+            border: 1px solid rgba(74, 222, 128, 0.5);
+        }
+        .upload-error {
+            background: rgba(127, 29, 29, 0.3);
+            border: 1px solid rgba(248, 113, 113, 0.7);
+        }
+        .upload-success h2,
+        .upload-error h3 {
+            margin-top: 0;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            font-size: 0.95rem;
+        }
+        footer {
+            text-align: center;
+            padding: 1.75rem 0 1rem;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+        footer a {
+            color: rgba(148, 163, 184, 0.95);
+            text-decoration: none;
         }
     </style>
 </head>
 <body>
-    <!-- UX.H1 Visual polish: Material-inspired upload card (CTO/UX pass) -->
-    <div class="container">
-        <div class="app-bar">
-            <div>
-                <h1 class="app-title">OmicsToken</h1>
-                <p class="app-tagline">Upload a run to start exploring your peptides.</p>
-            </div>
-            <a href="/static/runs.html" style="font-size: 0.9rem; color: var(--text-muted); text-decoration: none;">
-                ← Back to Runs
-            </a>
-        </div>
+    <main class="upload-page">
+        <section class="upload-shell">
+            <header class="upload-header">
+                <h1>Upload Peptide Tables</h1>
+                <p class="upload-subtitle">Drop your peptide exports and we'll translate them into structured biological tokens.</p>
+            </header>
 
-        <div id="uploadCard" class="card" style="max-width: 800px; margin: 0 auto;">
-            <form id="uploadForm" aria-live="polite">
-                <div class="grid">
-                    <div>
-                        <label for="fileInput">Peptide Table File</label>
-                        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Upload peptide table file">
-                            <input type="file" id="fileInput" name="file" required>
+            <div id="uploadCard" class="upload-card">
+                <form id="uploadForm" aria-live="polite">
+                    <div class="hero-dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload peptide table files">
+                        <input type="file" id="fileInput" name="file" required multiple>
+                        <div class="hero-dropzone-icon"><span>&#10515;</span></div>
+                        <div class="hero-dropzone-copy">
+                            <p class="dz-title">Drop your peptide tables here</p>
+                            <p class="dz-subtitle">Supports MaxQuant, DIA-NN, Spectronaut, and generic CSV/TSV exports.</p>
+                            <p id="fileNameLabel" class="dz-label">No files selected</p>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Upload &amp; Ingest</button>
+                    <a href="#" id="toggleAdvancedOptions">More upload options</a>
+
+                    <div id="advancedOptions">
+                        <div class="grid-2">
                             <div>
-                                <strong>Drop your CSV here or click to browse</strong>
-                                <p>We’ll parse peptides and start embedding in the background.</p>
-                                <p id="fileNameLabel" class="file-label">No file selected</p>
+                                <label for="formatInput">Format</label>
+                                <select id="formatInput" name="format">
+                                    <option value="auto">Auto-detect</option>
+                                    <option value="maxquant">MaxQuant</option>
+                                    <option value="diann">DIA-NN</option>
+                                    <option value="spectronaut">Spectronaut</option>
+                                    <option value="generic">Generic CSV</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="runIdInput">Run ID (Optional)</label>
+                                <input type="text" id="runIdInput" name="run_id" placeholder="e.g., RUN_2025_11_03_A">
                             </div>
                         </div>
-                        <p class="text-sm text-muted" style="margin-top: 0.5rem;">Accepted formats: MaxQuant (peptides.txt), DIA-NN, Spectronaut, or Generic CSV.</p>
-                    </div>
-
-                    <div class="grid-2">
-                        <div>
-                            <label for="formatInput">Format</label>
-                            <select id="formatInput" name="format">
-                                <option value="auto">Auto-detect</option>
-                                <option value="maxquant">MaxQuant (peptides.txt)</option>
-                                <option value="diann">DIA-NN (report.tsv)</option>
-                                <option value="spectronaut">Spectronaut</option>
-                                <option value="generic">Generic CSV</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="runIdInput">Run ID (Optional)</label>
-                            <input type="text" id="runIdInput" name="run_id" placeholder="e.g., RUN_2025_11_03_A">
+                        <div class="grid-2" style="margin-top:0.85rem;">
+                            <div>
+                                <label for="instrumentInput">Instrument (Optional)</label>
+                                <input type="text" id="instrumentInput" name="instrument" placeholder="e.g., Q Exactive">
+                            </div>
+                            <div>
+                                <label for="methodInput">Method (Optional)</label>
+                                <input type="text" id="methodInput" name="method" placeholder="e.g., HILIC or RP">
+                            </div>
                         </div>
                     </div>
+                </form>
+            </div>
 
-                    <div class="grid-2">
-                        <div>
-                            <label for="instrumentInput">Instrument (Optional)</label>
-                            <input type="text" id="instrumentInput" name="instrument" placeholder="e.g., Q Exactive">
-                        </div>
-                        <div>
-                            <label for="methodInput">Method (Optional)</label>
-                            <input type="text" id="methodInput" name="method" placeholder="e.g., HILIC or RP">
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary"
-                        style="width: 100%; justify-content: center; margin-top: 1rem;">
-                        Upload & Ingest
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <div id="status" class="card status-card" style="display: none; max-width: 800px; margin: 2rem auto; text-align: center;" role="status" aria-live="polite"></div>
-
-        <div id="errorCard" class="card error-card" style="display: none; max-width: 800px; margin: 1rem auto;" role="alert"></div>
-
-        <div id="successPanel" class="card success-panel" style="display: none; max-width: 800px; margin: 2rem auto; text-align: center;">
-            <!-- Success details will go here -->
-        </div>
-    </div>
+            <div id="status" class="upload-status" style="display:none;" role="status" aria-live="polite"></div>
+            <div id="errorCard" class="upload-error" style="display:none;" role="alert"></div>
+            <div id="successPanel" class="upload-success" style="display:none;"></div>
+        </section>
+    </main>
 
     <script>
         const token = localStorage.getItem('token');
@@ -141,24 +288,57 @@
         const uploadCard = document.getElementById('uploadCard');
         const errorCard = document.getElementById('errorCard');
         const successPanel = document.getElementById('successPanel');
-        const submitBtn = document.querySelector('button[type="submit"]');
+        const submitBtn = document.getElementById('submitBtn');
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
         const fileNameLabel = document.getElementById('fileNameLabel');
+        const toggleAdvancedOptions = document.getElementById('toggleAdvancedOptions');
+        const advancedOptions = document.getElementById('advancedOptions');
+        const formatInput = document.getElementById('formatInput');
+        const runIdInput = document.getElementById('runIdInput');
+        const instrumentInput = document.getElementById('instrumentInput');
+        const methodInput = document.getElementById('methodInput');
 
-        function updateFileLabel(file) {
-            fileNameLabel.textContent = file ? file.name : 'No file selected';
+        function setAdvancedOptionsVisibility(visible) {
+            advancedOptions.style.display = visible ? 'block' : 'none';
+            toggleAdvancedOptions.textContent = visible ? 'Hide upload options' : 'More upload options';
+            toggleAdvancedOptions.classList.toggle('open', visible);
+        }
+
+        toggleAdvancedOptions.addEventListener('click', (event) => {
+            event.preventDefault();
+            const isHidden = advancedOptions.style.display === 'none' || advancedOptions.style.display === '';
+            setAdvancedOptionsVisibility(isHidden);
+        });
+
+        const shouldAutoOpenAdvanced =
+            (runIdInput.value && runIdInput.value.trim() !== '') ||
+            (instrumentInput.value && instrumentInput.value.trim() !== '') ||
+            (methodInput.value && methodInput.value.trim() !== '');
+        if (shouldAutoOpenAdvanced) {
+            setAdvancedOptionsVisibility(true);
+        }
+
+        function updateFileLabel(fileList) {
+            if (!fileList || fileList.length === 0) {
+                fileNameLabel.textContent = 'No files selected';
+            } else if (fileList.length === 1) {
+                fileNameLabel.textContent = fileList[0].name;
+            } else {
+                const visible = Array.from(fileList).slice(0, 3).map(f => f.name);
+                const remaining = fileList.length - visible.length;
+                fileNameLabel.textContent = remaining > 0
+                    ? `${visible.join(', ')} + ${remaining} more`
+                    : visible.join(', ');
+            }
         }
 
         function handleFiles(files) {
-            if (!files || !files.length) {
-                return;
-            }
-            const file = files[0];
+            if (!files || !files.length) return;
             const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
+            Array.from(files).forEach(file => dataTransfer.items.add(file));
             fileInput.files = dataTransfer.files;
-            updateFileLabel(file);
+            updateFileLabel(fileInput.files);
         }
 
         dropzone.addEventListener('click', () => fileInput.click());
@@ -190,15 +370,10 @@
             event.stopPropagation();
             dropzone.classList.remove('drag-over');
             const files = event.dataTransfer?.files;
-            if (files && files.length) {
-                handleFiles(files);
-            }
+            if (files?.length) handleFiles(files);
         });
 
-        fileInput.addEventListener('change', () => {
-            const file = fileInput.files && fileInput.files[0];
-            updateFileLabel(file);
-        });
+        fileInput.addEventListener('change', () => updateFileLabel(fileInput.files));
 
         function setFormDisabled(disabled) {
             uploadForm.classList.toggle('dimmed', disabled);
@@ -215,96 +390,103 @@
             uploadCard.classList.remove('dimmed');
         }
 
-        uploadForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        uploadForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!fileInput.files.length) {
+                alert('Please select at least one file.');
+                return;
+            }
 
             resetPanels();
             statusDiv.style.display = 'block';
-            statusDiv.innerHTML = '<div style="padding: 1.5rem;"><p class="status-text"><span class="status-strong">Uploading & Ingesting...</span><br>Hang tight while we parse your file.</p></div>';
+            statusDiv.innerHTML = `<p class="status-text"><span class="status-strong">Uploading &amp; ingesting...</span><br>Processing ${fileInput.files.length} file(s). This may take a moment.</p>`;
             setFormDisabled(true);
-            submitBtn.innerText = "Processing...";
+            submitBtn.innerText = 'Processing...';
 
-            const file = document.getElementById('fileInput').files[0];
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('format', document.getElementById('formatInput').value);
-            formData.append('run_id', document.getElementById('runIdInput').value);
-            formData.append('instrument', document.getElementById('instrumentInput').value);
-            formData.append('method', document.getElementById('methodInput').value);
+            const uploadedRuns = [];
+            const errors = [];
+            const totalFiles = fileInput.files.length;
 
-            try {
-                const res = await fetch('/upload', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': 'Bearer ' + token
-                    },
-                    body: formData
-                });
+            for (let index = 0; index < fileInput.files.length; index++) {
+                const file = fileInput.files[index];
+                submitBtn.innerText = `Uploading ${index + 1} of ${totalFiles}...`;
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('format', formatInput.value);
+                formData.append('run_id', runIdInput.value);
+                formData.append('instrument', instrumentInput.value);
+                formData.append('method', methodInput.value);
 
-                const text = await res.text();
-                let data = null;
-                try { data = JSON.parse(text); } catch (_) {}
+                try {
+                    const res = await fetch('/upload', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token },
+                        body: formData
+                    });
 
-                if (res.ok && data && data.run_id) {
-                    const runId = data.run_id;
-                    const rowsIngested = (data.rows_ingested !== undefined && data.rows_ingested !== null) ? data.rows_ingested : 'Unknown';
-                    const message = data.message || 'Upload complete and embedding started in background.';
-                    statusDiv.innerHTML = '<div style="padding: 1rem;"><p class="status-text"><span class="status-strong" style="color: var(--success-color);">Upload Complete!</span> Redirecting to analysis...</p></div>';
-                    uploadCard.classList.add('dimmed');
-                    successPanel.style.display = 'block';
-                    successPanel.innerHTML = `
-                        <div>
-                            <h2 style="color: var(--success-color); margin-top: 0;">Upload complete</h2>
-                            <p>Run ID: <strong>${runId}</strong></p>
-                            <p>Rows ingested: <strong>${rowsIngested}</strong></p>
-                            <p class="success-note">${message}</p>
-                            <div class="flex" style="justify-content: center; margin-top: 1.5rem; gap: 1rem; flex-wrap: wrap;">
-                                <a href="/static/simple_dashboard.html?run_id=${encodeURIComponent(runId)}" class="btn btn-primary">Open Run Dashboard</a>
-                                <a href="/static/runs.html" class="btn btn-secondary">Go to My Runs</a>
-                            </div>
-                            <p class="text-muted" style="margin-top: 1rem;">You can revisit this run anytime while embeddings finish.</p>
-                        </div>
-                    `;
-                    // Auto-redirect to Dashboard after 1.5 seconds
-                    setTimeout(() => {
-                        window.location.href = `/static/dashboard.html?run_id=${runId}`;
-                    }, 1500);
-                    uploadForm.reset();
-                } else {
-                    const detail = (data && data.detail) ? data.detail : (text ? text : `Upload failed (HTTP ${res.status}).`);
-                    statusDiv.innerHTML = `
-                        <div style="padding: 1rem;">
-                            <p class="status-text"><span class="status-strong" style="color: var(--danger-color);">Upload failed.</span> Please review the error and try again.</p>
-                        </div>
-                    `;
-                    errorCard.style.display = 'block';
-                    errorCard.innerHTML = `
-                        <div>
-                            <h3 style="margin-top: 0; color: var(--danger-color);">Upload error</h3>
-                            <p class="text-muted">${detail}</p>
-                        </div>
-                    `;
-                    setFormDisabled(false);
+                    const text = await res.text();
+                    let data = null;
+                    try { data = JSON.parse(text); } catch (_) {}
+
+                    if (res.ok && data && data.run_id) {
+                        uploadedRuns.push({
+                            run_id: data.run_id,
+                            rows_ingested: data.rows_ingested ?? 'Unknown',
+                            file_name: file.name,
+                            order: index,
+                            message: data.message || 'Upload complete and embedding started in background.'
+                        });
+                    } else {
+                        errors.push({
+                            file: file.name,
+                            detail: (data && data.detail) || text || `Upload failed (HTTP ${res.status}).`
+                        });
+                    }
+                } catch (err) {
+                    errors.push({ file: file.name, detail: err.message });
                 }
-            } catch (e) {
-                statusDiv.innerHTML = `<div style="padding: 1rem;"><p class="status-text"><span class="status-strong" style="color: var(--danger-color);">Error.</span> ${e.message}</p></div>`;
+            }
+
+            if (uploadedRuns.length) {
+                uploadedRuns.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+                const uploadedRunIds = uploadedRuns.map(run => run.run_id);
+                const uploadedFiles = uploadedRuns.map(run => run.file_name || '');
+                const params = new URLSearchParams();
+                if (uploadedRunIds.length) {
+                    params.set('uploaded_runs', uploadedRunIds.join(','));
+                }
+                if (uploadedFiles.some(name => name)) {
+                    params.set('uploaded_files', uploadedFiles.join(','));
+                }
+                window.location.href = `/static/runs.html?${params.toString()}`;
+                return;
+            }
+
+            if (errors.length) {
                 errorCard.style.display = 'block';
+                const items = errors.map(err => `<li><strong>${err.file}</strong>: ${err.detail}</li>`).join('');
                 errorCard.innerHTML = `
                     <div>
-                        <h3 style="margin-top: 0; color: var(--danger-color);">Network or client error</h3>
-                        <p class="text-muted">${e.message}</p>
+                        <h3>Some uploads failed</h3>
+                        <p>Please review the errors below and try again.</p>
+                        <ul style="padding-left:1.5rem;text-align:left;">${items}</ul>
                     </div>
                 `;
+                uploadCard.classList.remove('dimmed');
                 setFormDisabled(false);
-            } finally {
-                submitBtn.innerText = "Upload & Ingest";
+                submitBtn.innerText = 'Upload & Ingest';
+                return;
             }
+
+            uploadCard.classList.remove('dimmed');
+            setFormDisabled(false);
+            submitBtn.innerText = 'Upload & Ingest';
         });
     </script>
-    <footer style="text-align:center; padding: 1.5rem 0; border-top: 1px solid #ddd; margin-top: 2rem;">
-      <a href="/static/terms.html" target="_blank">Terms</a>
-      &nbsp;·&nbsp;
-      <a href="/static/privacy.html" target="_blank">Privacy</a>
+    <footer>
+        <a href="/static/terms.html" target="_blank">Terms</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/static/privacy.html" target="_blank">Privacy</a>
     </footer>
 </body>
 </html>

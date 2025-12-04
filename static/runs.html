@@ -9,10 +9,10 @@
     <style>
         .filter-bar { display: flex; gap: 0.75rem; align-items: center; margin: 1rem 0; flex-wrap: wrap; }
         .filter-bar input, .filter-bar select { padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--card-bg); color: var(--text-color); }
-        .badge.status { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
-        .badge.ready { background: #1b5e20; color: #e8f5e9; }
-        .badge.processing { background: #f57f17; color: #fffde7; }
-        .badge.not-embedded { background: #424242; color: #f5f5f5; }
+        .badge.status { padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; }
+        .badge.ready { background: rgba(34, 197, 94, 0.18); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.5); }
+        .badge.processing { background: rgba(251, 191, 36, 0.18); color: #fcd34d; border: 1px solid rgba(251, 191, 36, 0.45); }
+        .badge.waiting { background: rgba(148, 163, 184, 0.2); color: #cbd5f5; border: 1px solid rgba(148, 163, 184, 0.45); }
         .hint { margin-top: 0.5rem; color: var(--text-muted); font-size: 0.9rem; }
         .actions-row { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 1rem; }
         .primary-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
@@ -49,6 +49,37 @@
         .modal-card h3 { margin-top: 0; margin-bottom: 0.5rem; }
         .modal-card p { margin: 0.35rem 0; color: var(--text-muted); }
         .modal-actions { margin-top: 1rem; text-align: right; }
+        .upload-success {
+            display: none;
+            margin: 1.5rem 0;
+            border-radius: 16px;
+            padding: 1rem 1.25rem;
+            background: rgba(22, 101, 52, 0.24);
+            border: 1px solid rgba(74, 222, 128, 0.55);
+            box-shadow: var(--shadow);
+            color: var(--text-primary);
+        }
+        .upload-success h2 {
+            margin: 0 0 0.35rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            font-size: 0.95rem;
+        }
+        .upload-success p {
+            margin: 0;
+            color: var(--text-muted);
+        }
+        .run-card-new {
+            position: relative;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+            box-shadow: 0 12px 32px rgba(34, 197, 94, 0.2);
+            animation: new-run-pulse 1.2s ease-out 1;
+        }
+        @keyframes new-run-pulse {
+            0% { box-shadow: 0 0 0 rgba(34, 197, 94, 0.0); }
+            50% { box-shadow: 0 18px 38px rgba(34, 197, 94, 0.35); }
+            100% { box-shadow: 0 12px 32px rgba(34, 197, 94, 0.2); }
+        }
     </style>
 </head>
 <body>
@@ -61,6 +92,8 @@
                 <a href="/static/compare.html" class="btn btn-secondary">Compare Runs</a>
             </div>
         </div>
+
+        <div id="uploadBanner" class="upload-success"></div>
 
         <div class="filter-bar">
             <input type="text" id="run-search" placeholder="Search by run ID, filename, or instrument">
@@ -84,6 +117,15 @@
         const creditsModalBackdrop = document.getElementById('credits-modal-backdrop');
         const creditsModalBalance = document.getElementById('credits-modal-balance');
         const creditsModalClose = document.getElementById('credits-modal-close');
+        const urlParams = new URLSearchParams(window.location.search);
+        const uploadedRunIds = (urlParams.get('uploaded_runs') || '')
+            .split(',')
+            .map(id => id.trim())
+            .filter(Boolean);
+        const uploadedFileNames = (urlParams.get('uploaded_files') || '')
+            .split(',')
+            .map(name => name.trim())
+            .filter(Boolean);
         let latestUserCredits = 0;
 
         window.addEventListener('DOMContentLoaded', async () => {
@@ -94,6 +136,22 @@
             if (!token) {
                 loadingEl.innerHTML = 'You are not logged in. <a href="/static/login.html">Please log in</a>.';
                 return;
+            }
+
+            if (uploadedFileNames.length) {
+                const banner = document.getElementById('uploadBanner');
+                if (banner) {
+                    const fileList = uploadedFileNames.join(', ');
+                    banner.innerHTML = `
+                        <h2>Upload successful</h2>
+                        <p>Uploaded: <strong>${fileList}</strong>. Embeddings are running in the background — you can start exploring these runs now.</p>
+                    `;
+                    banner.style.display = 'block';
+                    banner.scrollIntoView({ behavior: 'smooth' });
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                }
             }
 
             try {
@@ -113,6 +171,19 @@
                 const userCredits = data.user_credits;
                 latestUserCredits = userCredits || 0;
 
+                if (uploadedRunIds.length) {
+                    runs.sort((a, b) => {
+                        const idA = a.run_id || a.id || '';
+                        const idB = b.run_id || b.id || '';
+                        const idxA = uploadedRunIds.indexOf(idA);
+                        const idxB = uploadedRunIds.indexOf(idB);
+                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                        if (idxA !== -1) return -1;
+                        if (idxB !== -1) return 1;
+                        return 0;
+                    });
+                }
+
                 document.getElementById('credits-display').textContent = 'Credits: ' + userCredits;
 
                 if (runs.length === 0) {
@@ -123,9 +194,10 @@
                         const status = computeStatus(run);
                         const nFeatures = getStatValue(run, 'n_features');
                         const nEmbeddings = getStatValue(run, 'n_embeddings');
+                        const isNewRun = uploadedRunIds.includes(run.run_id || '');
                         const card = document.createElement('div');
                         card.id = `run-card-${run.run_id}`; // Add an ID for easy removal
-                        card.className = 'card run-card';
+                        card.className = `card run-card${isNewRun ? ' run-card-new' : ''}`;
                         card.dataset.runId = run.run_id || '';
                         card.dataset.filename = run.original_filename || '';
                         card.dataset.instrument = run.instrument || '';
@@ -138,7 +210,7 @@
                                     ${run.instrument ? `<p class="text-sm text-muted">Instrument: ${run.instrument}</p>` : ''}
                                 </div>
                                 <div class="flex" style="gap: 0.5rem; align-items: center;">
-                                    <span class="badge status ${status.className}">${status.label}</span>
+                                    <span class="badge status ${status.className}">${status.badgeLabel || status.label.toUpperCase()}</span>
                                 </div>
                             </div>
                             <div class="flex text-sm text-muted" style="gap: 1.5rem; margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
@@ -201,12 +273,12 @@
         function computeStatus(run) {
             const friendly = computeFriendlyStatus(run);
             if (friendly === "Ready") {
-                return { key: 'ready', label: friendly, className: 'ready' };
+                return { key: 'ready', label: friendly, className: 'ready', badgeLabel: 'READY' };
             }
             if (friendly === "Waiting for Embedding") {
-                return { key: 'waiting_for_embedding', label: friendly, className: 'not-embedded' };
+                return { key: 'waiting_for_embedding', label: friendly, className: 'waiting', badgeLabel: 'WAITING' };
             }
-            return { key: 'processing', label: friendly, className: 'processing' };
+            return { key: 'processing', label: friendly, className: 'processing', badgeLabel: 'PROCESSING' };
         }
 
         function renderHint(run) {
