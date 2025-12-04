@@ -31,14 +31,14 @@ def pack():
                     with open(filename, "r", encoding="utf-8") as f:
                         out.write(f.read())
                     out.write(f"\n# --- END OF {filename} ---\n")
-                    print(f"✅ Packed: {filename}")
+                    print(f"[OK] Packed: {filename}")
                 except Exception as e:
-                    print(f"❌ Error reading {filename}: {e}")
+                    print(f"[ERR] Error reading {filename}: {e}")
             else:
-                print(f"⚠️  Missing: {filename} (Skipped)")
+                print(f"[WARN] Missing: {filename} (Skipped)")
                 out.write(f"\n# --- FILE: {filename} (MISSING) ---\n")
 
-    print(f"\n📦 Context packed into: {OUTPUT_FILE}")
+    print(f"\nContext packed into: {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     pack()
