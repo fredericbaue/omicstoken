@@ -182,4 +182,6 @@ All code changes must preserve this end-to-end flow.
 [x] 5.1 Multi-Run Export Bundle
 [x] 5.2 Automated Insight Report
 [x] 5.3 API Tokens for Lab Integrations
+[x] UX.C4 Upload handoff polish (multi-file flow, advanced options auto-toggle, contextual redirect/banner on runs page)
+[x] UX.C5 Runs list highlights for newly uploaded files (success banner, sorting, badges)
 

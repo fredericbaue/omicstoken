@@ -81,7 +81,7 @@
             width: 100%;
             height: 100%;
             opacity: 0;
-            cursor: pointer;
+            pointer-events: none;
         }
         .hero-dropzone-icon {
             width: 48px;
@@ -420,7 +420,7 @@
                 try {
                     const res = await fetch('/upload', {
                         method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + token },
+                        headers: { 'Authorization': `Bearer ${token}` },
                         body: formData
                     });
 

@@ -268,3 +268,9 @@
 - Value: Enables 'Time to Insight' metric tracking for investor demos.
 
 \n## 2025-12-03 - Horizon 1 (UX + Time-to-Insight) Complete\n- Wrapped UX.C1–C3 and H1–H3 polish: dropdown actions, status labels, drag-drop upload, cross-context search links, post-upload redirect funnel.\n- Added timing instrumentation (upload→embed) and surfaced timing in run details.\n- Standardized Celery worker start on Windows (--pool=solo) via start.bat.\n- MD3 dark theme tokens and dropdown styles consolidated in style.css; search/dashboard links now jump between contexts.\n- Ready for investor demos with Time-to-Insight tracking and streamlined navigation.\n
+---------------------------------------------------------
+## 2025-12-04 - Upload to Runs UX Refinement
+- Upgraded static/upload.html with a hero dropzone, multi-file progress indicator, and sequential uploads that redirect to runs with contextual query params; advanced options now auto-expand when pre-filled.
+- static/runs.html now reads those params, shows a success banner, reorders new runs to the top, highlights them visually, adds modern status badges, and displays a skeleton while data loads.
+- Ensured Celery worker persists protein structures and added a verification utility; fixed vss/pack_context so session bundles generate reliably on Windows.
+

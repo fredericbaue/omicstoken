@@ -80,6 +80,37 @@
             50% { box-shadow: 0 18px 38px rgba(34, 197, 94, 0.35); }
             100% { box-shadow: 0 12px 32px rgba(34, 197, 94, 0.2); }
         }
+        .runs-skeleton {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0 0;
+            animation: fade-in 0.3s ease-out;
+        }
+        .runs-skeleton-card {
+            border-radius: 16px;
+            padding: 1.25rem;
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            position: relative;
+            overflow: hidden;
+        }
+        .runs-skeleton-line {
+            height: 12px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(148, 163, 184, 0.15), rgba(148, 163, 184, 0.4), rgba(148, 163, 184, 0.15));
+            background-size: 200% 100%;
+            animation: shimmer 1.3s infinite;
+        }
+        .runs-skeleton-line + .runs-skeleton-line { margin-top: 0.75rem; }
+        @keyframes shimmer {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
@@ -102,6 +133,27 @@
                 <option value="ready">Ready</option>
                 <option value="needs_attention">Needs attention</option>
             </select>
+        </div>
+
+        <div id="runsSkeleton" class="runs-skeleton" aria-hidden="true">
+            <div class="runs-skeleton-card">
+                <div class="runs-skeleton-line" style="width:60%;height:16px;"></div>
+                <div class="runs-skeleton-line" style="width:40%;"></div>
+                <div class="runs-skeleton-line" style="width:80%;height:10px;"></div>
+                <div class="runs-skeleton-line" style="width:70%;height:10px;"></div>
+            </div>
+            <div class="runs-skeleton-card">
+                <div class="runs-skeleton-line" style="width:55%;height:16px;"></div>
+                <div class="runs-skeleton-line" style="width:35%;"></div>
+                <div class="runs-skeleton-line" style="width:75%;height:10px;"></div>
+                <div class="runs-skeleton-line" style="width:65%;height:10px;"></div>
+            </div>
+            <div class="runs-skeleton-card">
+                <div class="runs-skeleton-line" style="width:58%;height:16px;"></div>
+                <div class="runs-skeleton-line" style="width:45%;"></div>
+                <div class="runs-skeleton-line" style="width:82%;height:10px;"></div>
+                <div class="runs-skeleton-line" style="width:68%;height:10px;"></div>
+            </div>
         </div>
 
         <div id="runsList" class="grid" style="--grid-cols: 1; gap: 1rem;">
@@ -128,6 +180,13 @@
             .filter(Boolean);
         let latestUserCredits = 0;
 
+        function hideSkeleton() {
+            const skeleton = document.getElementById('runsSkeleton');
+            if (skeleton) {
+                skeleton.remove();
+            }
+        }
+
         window.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('token');
             const runsList = document.getElementById('runsList');
@@ -135,6 +194,7 @@
 
             if (!token) {
                 loadingEl.innerHTML = 'You are not logged in. <a href="/static/login.html">Please log in</a>.';
+                hideSkeleton();
                 return;
             }
 
@@ -160,9 +220,11 @@
 
                 if (response.status === 401) {
                     loadingEl.innerHTML = 'Your session has expired. <a href="/static/login.html">Please log in again</a>.';
+                    hideSkeleton();
                     return;
                 }
                 if (!response.ok) {
+                    hideSkeleton();
                     throw new Error(`Failed to load runs (status: ${response.status})`);
                 }
 
@@ -188,8 +250,10 @@
 
                 if (runs.length === 0) {
                     loadingEl.textContent = 'No runs found. Try uploading some data!';
+                    hideSkeleton();
                 } else {
                     loadingEl.remove();
+                    hideSkeleton();
                     runs.forEach(run => {
                         const status = computeStatus(run);
                         const nFeatures = getStatValue(run, 'n_features');
@@ -242,6 +306,7 @@
                 }
             } catch (e) {
                 loadingEl.innerHTML = `<span style="color: red;">Error: ${e.message}</span>`;
+                hideSkeleton();
             }
         });
 
