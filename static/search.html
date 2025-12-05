@@ -2,98 +2,157 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Peptide Similarity Search | Immuno-Engine</title>
+  <title>Peptide Similarity Search | OmicsToken</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/style.css">
   <style>
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #020617;
-      color: #e5e7eb;
+    :root {
+      --shell-bg: rgba(15, 23, 42, 0.92);
+      --shell-border: rgba(148, 163, 184, 0.25);
+      --text-body: #e5e7eb;
+      --text-muted: rgba(226, 232, 240, 0.75);
+      --surface: rgba(2, 6, 23, 0.7);
+      --accent: linear-gradient(135deg, #6366f1, #22c1c3);
     }
-    header {
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    body.search-body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Inter", "SF Pro Text", -apple-system, system-ui, sans-serif;
+      background: radial-gradient(circle at top, #0f172a 0%, #020617 55%, #000 100%);
+      color: var(--text-body);
+    }
+    .search-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2.75rem 1.75rem 4rem;
+    }
+    .search-hero {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      padding: 12px 20px;
-      border-bottom: 1px solid #111827;
-      background: #020617;
+      gap: 2rem;
+      flex-wrap: wrap;
+      background: var(--shell-bg);
+      border: 1px solid var(--shell-border);
+      border-radius: 28px;
+      padding: 2rem 2.25rem;
+      box-shadow: 0 30px 80px rgba(2, 6, 23, 0.75);
+      margin-bottom: 1.75rem;
     }
-    header h1 {
-      font-size: 18px;
+    .search-hero-copy h1 {
+      font-size: 2.2rem;
+      margin: 0.4rem 0 0.5rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(120deg, #38bdf8, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .search-kicker {
+      text-transform: uppercase;
+      font-size: 0.78rem;
+      letter-spacing: 0.32em;
+      color: rgba(148, 163, 184, 0.9);
       margin: 0;
     }
-    header .sub {
-      font-size: 11px;
-      opacity: 0.7;
+    .search-hero-copy p {
+      margin: 0;
+      color: var(--text-muted);
+      max-width: 46ch;
+      line-height: 1.6;
     }
-    header nav a {
-      color: #9ca3af;
-      text-decoration: none;
-      font-size: 12px;
-      margin-left: 12px;
+    .search-hero-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      align-items: flex-start;
     }
-    header nav a:hover {
-      color: #e5e7eb;
+    .hero-links {
+      display: flex;
+      gap: 0.65rem;
+      flex-wrap: wrap;
     }
-    main {
-      padding: 16px 20px 28px;
+    .btn {
+      border-radius: 999px;
+      padding: 0.75rem 1.4rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 22px 45px rgba(79, 70, 229, 0.55);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-body);
+    }
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+    .search-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.5fr);
-      gap: 16px;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.3fr);
+      gap: 1.5rem;
     }
-    @media (max-width: 900px) {
-      main {
+    @media (max-width: 1024px) {
+      .search-grid {
         grid-template-columns: 1fr;
       }
     }
     .card {
-      background: #020617;
-      border-radius: 10px;
-      border: 1px solid #1f2937;
-      padding: 14px 16px 16px;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 24px;
+      padding: 1.75rem 1.9rem;
+      box-shadow: 0 24px 65px rgba(2, 6, 23, 0.7);
     }
     .card h2 {
-      font-size: 16px;
-      margin: 0 0 8px;
+      margin: 0 0 0.65rem;
+      font-size: 1.35rem;
+      letter-spacing: 0.01em;
     }
     .card h3 {
-      font-size: 14px;
-      margin: 16px 0 6px;
+      margin: 1.4rem 0 0.5rem;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
     }
-    .status {
-      font-size: 12px;
-      min-height: 16px;
-      margin-top: 4px;
+    .badge-group {
+      font-size: 0.85rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
     }
-    .status span.ok { color: #4ade80; }
-    .status span.err { color: #f97316; }
-    .status span.info { color: #60a5fa; }
-
     .badge {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      font-size: 11px;
+      gap: 0.35rem;
+      padding: 0.25rem 0.75rem;
       border-radius: 999px;
-      border: 1px solid #374151;
-      background: #020617;
-      margin-right: 6px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      background: rgba(2, 6, 23, 0.7);
     }
     .badge strong {
       font-weight: 600;
+      letter-spacing: 0.05em;
     }
-
     .peptide-table,
-    .neighbors-box {
-      border-radius: 8px;
-      border: 1px solid #1f2937;
-      margin-top: 6px;
-      max-height: 260px;
+    .neighbors-box,
+    .explanation {
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: var(--surface);
+      margin-top: 0.75rem;
+      max-height: 320px;
       overflow-y: auto;
-      font-size: 12px;
+      font-size: 0.9rem;
     }
     table {
       width: 100%;
@@ -101,128 +160,134 @@
     }
     th,
     td {
-      padding: 4px 6px;
-      border-bottom: 1px solid #111827;
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid rgba(15, 23, 42, 0.9);
       white-space: nowrap;
+      font-size: 0.85rem;
     }
     thead th {
       position: sticky;
       top: 0;
-      background: #020617;
+      background: rgba(2, 6, 23, 0.95);
       z-index: 1;
-      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.75rem;
     }
     tbody tr:hover {
-      background: #0b1120;
+      background: rgba(56, 189, 248, 0.12);
       cursor: pointer;
     }
-
-    .explanation {
-      margin-top: 6px;
-      border-radius: 8px;
-      border: 1px solid #1f2937;
-      padding: 8px 10px;
-      font-size: 13px;
-      line-height: 1.4;
-      white-space: pre-wrap;
-      background: #020617;
-      max-height: 220px;
-      overflow-y: auto;
-    }
-
     .neighbors-item {
       display: flex;
       justify-content: space-between;
-      gap: 8px;
-      padding: 2px 6px;
-      border-bottom: 1px dashed #111827;
+      gap: 0.75rem;
+      padding: 0.35rem 0.75rem;
+      border-bottom: 1px dashed rgba(15, 23, 42, 0.65);
     }
     .neighbors-item:last-child {
       border-bottom: none;
     }
     .neighbors-item span.seq {
-      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      color: #38bdf8;
     }
     .neighbors-item span.small {
-      font-size: 11px;
-      opacity: 0.85;
+      font-size: 0.78rem;
+      color: var(--text-muted);
     }
+    .explanation {
+      padding: 1rem 1.2rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .status {
+      font-size: 0.85rem;
+      min-height: 1rem;
+      margin-top: 0.75rem;
+    }
+    .status span.ok { color: #4ade80; }
+    .status span.err { color: #f97316; }
+    .status span.info { color: #60a5fa; }
     .context-banner {
-      margin: 8px 0 12px;
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px solid #1f2937;
-      background: #0b1120;
-      font-size: 12px;
+      display: none;
+      margin: 0 0 1.5rem;
+      padding: 1rem 1.2rem;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.85);
+      font-size: 0.95rem;
+    }
+    code {
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.85rem;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 0.15rem 0.3rem;
+      border-radius: 4px;
     }
     .auto-highlight {
       outline: 1px solid #38bdf8;
-      background: #0b1120;
+      background: rgba(15, 118, 110, 0.25);
     }
-
-    code {
-      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 11px;
-      background: #020617;
-      padding: 1px 4px;
-      border-radius: 4px;
+    .link-muted {
+      color: rgba(148, 163, 184, 0.95);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .link-muted:hover {
+      color: #fff;
     }
   </style>
 </head>
-<body>
-  <header>
-    <div>
-      <h1>Peptide Similarity Search</h1>
-      <div class="sub">
-        Run-level nearest neighbors over FAISS embeddings
+<body class="search-body">
+  <main class="search-shell">
+    <section class="search-hero">
+      <div class="search-hero-copy">
+        <p class="search-kicker">Vector search</p>
+        <h1>Peptide Similarity Search</h1>
+        <p>Explore FAISS nearest neighbors for any peptide in a run. Perfect for explaining overlap, finding analogues, or showcasing the intelligence behind OmicsToken.</p>
       </div>
-    </div>
-    <nav>
-      <a href="/static/runs.html">My Runs</a>
-      <a href="/static/upload.html">Upload</a>
-      <a href="/docs" target="_blank">API Docs</a>
-    </nav>
-  </header>
-
-  <div id="contextBanner" class="context-banner" style="display:none;"></div>
-
-  <main>
-    <!-- LEFT: Peptide table -->
-    <section class="card">
-      <h2>1. Choose a peptide</h2>
-      <div style="font-size:12px; margin-bottom:4px;">
-        <span class="badge">
-          <strong>Run:</strong> <span id="runLabel">–</span>
-        </span>
-        <span class="badge">
-          <strong>Feature:</strong> <span id="featureLabel">none</span>
-        </span>
-      </div>
-      <p style="margin:4px 0 6px; font-size:12px; opacity:0.8;">
-        These are the top peptides from <code>/dashboard-data/{run_id}</code>. Click any row to search for neighbors.
-      </p>
-      <div class="peptide-table" id="peptideTable"></div>
-      <div class="status" id="peptideStatus"></div>
-    </section>
-
-    <!-- RIGHT: Neighbors + explanation -->
-    <section class="card">
-      <h2>2. Neighbors & context</h2>
-      <h3>Nearest neighbors in this run</h3>
-      <div class="neighbors-box" id="neighborsBox">
-        <div style="font-size:12px; opacity:0.7; padding:6px 8px;">
-          Select a peptide on the left to find its nearest neighbors.
+      <div class="search-hero-actions">
+        <div class="hero-links">
+            <a href="/static/runs.html" class="btn btn-primary">Back to Runs</a>
+            <a href="/static/upload.html" class="btn btn-secondary">Upload Data</a>
         </div>
+        <a class="link-muted" href="/docs" target="_blank">API Docs →</a>
       </div>
-
-      <h3>Selected peptide explanation</h3>
-      <div class="explanation" id="explanationBox">
-        When you click a peptide, this will show the AI explanation from <code>/peptide/explain/{run_id}/{feature_id}</code>.
-      </div>
-      <div id="fullExplainLink" style="margin-top:6px; font-size:12px;"></div>
-
-      <div class="status" id="explainStatus"></div>
     </section>
+
+    <div id="contextBanner" class="context-banner"></div>
+
+    <div class="search-grid">
+      <section class="card">
+        <h2>1. Choose a peptide</h2>
+        <div class="badge-group">
+          <span class="badge"><strong>Run</strong> <span id="runLabel">—</span></span>
+          <span class="badge"><strong>Feature</strong> <span id="featureLabel">none</span></span>
+        </div>
+        <p style="margin:0;font-size:0.95rem;color:var(--text-muted);">
+          These are the top peptides from <code>/dashboard-data/{run_id}</code>. Click any row to search for neighbors.
+        </p>
+        <div class="peptide-table" id="peptideTable"></div>
+        <div class="status" id="peptideStatus"></div>
+      </section>
+
+      <section class="card">
+        <h2>2. Neighbors & context</h2>
+        <h3>Nearest neighbors</h3>
+        <div class="neighbors-box" id="neighborsBox">
+          <div style="font-size:0.9rem;opacity:0.7;padding:0.8rem;">
+            Select a peptide to retrieve its latent-space neighbors.
+          </div>
+        </div>
+        <h3>AI explanation</h3>
+        <div class="explanation" id="explanationBox">
+          When you click a peptide, this will show the AI explanation from <code>/peptide/explain/{run_id}/{feature_id}</code>.
+        </div>
+        <div id="fullExplainLink" style="margin-top:0.75rem;font-size:0.9rem;"></div>
+        <div class="status" id="explainStatus"></div>
+      </section>
+    </div>
   </main>
 
   <script>
@@ -314,7 +379,7 @@
         const items = data.data || [];
         if (!items.length) {
           peptideTableEl.innerHTML =
-            "<div style='padding:6px 8px; font-size:12px; opacity:0.7;'>No peptides found for this run.</div>";
+            "<div style='padding:0.8rem;font-size:0.9rem;opacity:0.65;'>No peptides found for this run.</div>";
           setStatus(peptideStatusEl, "", "info");
           setContextBanner("", "info");
           return;
@@ -370,7 +435,7 @@
             );
             setStatus(peptideStatusEl, "Peptide not found; select another.", "err");
           }
-        } else if (!featureIdParam) {
+        } else {
           setContextBanner("");
         }
       } catch (err) {
@@ -385,7 +450,7 @@
       featureLabelEl.textContent = `${featureId} (${sequence})`;
       setContextBanner(`Showing neighbors for peptide ${sequence || featureId} (Run ${runId}).`, "ok");
       neighborsBoxEl.innerHTML =
-        "<div style='font-size:12px; opacity:0.7; padding:6px 8px;'>Searching neighbors...</div>";
+        "<div style='font-size:0.9rem;opacity:0.7;padding:0.75rem;'>Searching neighbors...</div>";
       explanationBoxEl.textContent = "Requesting explanation...";
       if (fullExplainLinkEl) fullExplainLinkEl.innerHTML = "";
       setStatus(explainStatusEl, "", "info");
@@ -397,7 +462,6 @@
       }
 
       try {
-        // 1) Similarity search
         const searchRes = await fetch(
           `${API_URL}/peptide/search/${encodeURIComponent(runId)}/${encodeURIComponent(featureId)}?k=10`,
           {
@@ -414,7 +478,7 @@
         const neighbors = searchData.neighbors || [];
         if (!neighbors.length) {
           neighborsBoxEl.innerHTML =
-            "<div style='font-size:12px; opacity:0.7; padding:6px 8px;'>No neighbors found in this run.</div>";
+            "<div style='font-size:0.9rem;opacity:0.7;padding:0.8rem;'>No neighbors found in this run.</div>";
         } else {
           const container = document.createElement("div");
           neighbors.forEach((n) => {
@@ -422,12 +486,12 @@
             div.className = "neighbors-item";
             div.innerHTML = `
               <span class="seq">
-                <a href="/static/search.html?run_id=${encodeURIComponent(runId || "")}&sequence=${encodeURIComponent(n.peptide_sequence || "")}" class="text-blue-400 hover:text-blue-300 hover:underline">
+                <a href="/static/search.html?run_id=${encodeURIComponent(runId || "")}&sequence=${encodeURIComponent(n.peptide_sequence || "")}" style="color:#38bdf8;text-decoration:none;">
                   ${n.peptide_sequence || ""}
                 </a>
               </span>
-              <span class="small">sim=${(n.similarity ?? n.similarity_score ?? 0).toFixed(3)}</span>
-              <span class="small">int=${n.intensity ?? ""}</span>
+              <span class="small">sim ${(n.similarity ?? n.similarity_score ?? 0).toFixed(3)}</span>
+              <span class="small">int ${n.intensity ?? ""}</span>
             `;
             container.appendChild(div);
           });
@@ -435,7 +499,6 @@
           neighborsBoxEl.appendChild(container);
         }
 
-        // 2) Explanation
         try {
           const expRes = await fetch(
             `${API_URL}/peptide/explain/${encodeURIComponent(runId)}/${encodeURIComponent(featureId)}`,
@@ -455,7 +518,7 @@
             JSON.stringify(expData, null, 2);
           if (fullExplainLinkEl) {
             const url = `/static/explain.html?run_id=${encodeURIComponent(runId)}&feature_id=${encodeURIComponent(featureId)}`;
-            fullExplainLinkEl.innerHTML = `<a href="${url}" style="color:#60a5fa; text-decoration:none;">Open full explanation view &rarr;</a>`;
+            fullExplainLinkEl.innerHTML = `<a href="${url}" style="color:#60a5fa;text-decoration:none;">Open full explanation view →</a>`;
           }
           setStatus(explainStatusEl, "", "info");
         } catch (expErr) {
@@ -466,13 +529,12 @@
       } catch (err) {
         console.error(err);
         neighborsBoxEl.innerHTML =
-          "<div style='font-size:12px; opacity:0.7; padding:6px 8px;'>No neighbors.</div>";
+          "<div style='font-size:0.9rem;opacity:0.7;padding:0.8rem;'>No neighbors.</div>";
         explanationBoxEl.textContent = "Failed to search neighbors: " + err.message;
         setStatus(explainStatusEl, "Neighbor search failed.", "err");
       }
     }
 
-    // --- Init ---
     (function init() {
       const runId = getRunIdFromQuery();
       runLabelEl.textContent = runId || "none";

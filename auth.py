@@ -49,8 +49,12 @@ async def get_user_db(session: AsyncSession = Depends(get_async_session)):
     yield SQLAlchemyUserDatabase(session, User)
 
 # --- Password Helper (The Fix) ---
-# Explicitly use bcrypt to avoid Argon2/C++ dependency issues
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Explicitly support legacy Argon2 hashes while hashing new passwords with bcrypt.
+# If argon2 is unavailable (e.g., missing optional dependency), fall back to bcrypt-only.
+try:
+    pwd_context = CryptContext(schemes=["bcrypt", "argon2"], deprecated="auto")
+except Exception:
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # --- User Manager ---
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):

@@ -5,8 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Proteomics Scientific Workbench</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com" defer></script>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <link rel="stylesheet" href="/static/dashboard.css">
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap"
         rel="stylesheet">
@@ -52,137 +53,99 @@
     </style>
 </head>
 
-<body class="bg-slate-950 text-slate-200 h-screen flex overflow-hidden font-sans">
-
-    <!-- Sidebar: Peptide List -->
-    <aside class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col">
-        <div class="p-4 border-b border-slate-800">
-            <h1 class="text-lg font-semibold text-emerald-400 tracking-tight">ANTIGRAVITY<span
-                    class="text-slate-500 text-xs ml-2">WORKBENCH</span></h1>
-            <div class="mt-4">
-                <input type="text" id="runIdInput" placeholder="Run ID (e.g. TUMOR_RUN_001)"
-                    class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500 transition-colors font-mono">
-                <button onclick="loadRealData()"
-                    class="mt-2 w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-1.5 rounded transition-colors">
-                    LOAD RUN
-                </button>
-                <button onclick="simulateDataLoad()"
-                    class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-bold py-1.5 rounded transition-colors">
-                    SIMULATE DATA
-                </button>
+<body class="dashboard-body">
+    <div class="dashboard-shell">
+        <!-- Sidebar: Peptide List -->
+        <aside class="dashboard-panel dashboard-panel--sidebar">
+            <div class="dashboard-panel__header">
+                <p class="dashboard-title">ACTIVE OMICSTOKEN PROJECT</p>
+                <h1 class="dashboard-hero-label">Dashboard</h1>
+                <div class="dashboard-control-group">
+                    <select id="runSelect" class="dashboard-input">
+                        <option value="">Select a run...</option>
+                    </select>
+                    <button onclick="loadRealData()" class="sidebar-button primary">Load Run</button>
+                    <button onclick="simulateDataLoad()" class="sidebar-button secondary">Simulate Data</button>
+                </div>
             </div>
-        </div>
 
-        <div class="flex-1 overflow-y-auto p-2" id="peptideList">
-            <!-- Peptide items injected here -->
-            <div class="text-center text-slate-600 text-sm mt-10 italic">Load data to view peptides</div>
-        </div>
-
-        <div class="p-3 border-t border-slate-800 text-xs text-slate-500 flex justify-between">
-            <span>Items: <span id="itemCount">0</span></span>
-            <span>v0.4.0-beta</span>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-full">
-
-        <!-- Top Pane: Visualization (60%) -->
-        <div class="h-[60%] border-b border-slate-800 relative p-4">
-            <div
-                class="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur px-3 py-1 rounded border border-slate-700 text-xs font-mono text-emerald-400">
-                FIGURE 1: HYDROPHOBICITY vs. MW
+            <div class="dashboard-list" id="peptideList">
+                <div class="dashboard-empty">Load data to view peptides</div>
             </div>
-            <div id="scatterPlot" class="w-full h-full"></div>
-        </div>
+            <div class="dashboard-panel__footer">
+                <span>Items: <span id="itemCount">0</span></span>
+                <span>v0.4.0-beta</span>
+            </div>
+        </aside>
 
-        <!-- Bottom Pane: Detail View (40%) -->
-        <div class="h-[40%] bg-slate-900 p-6 overflow-y-auto">
-            <div id="detailView" class="hidden h-full flex flex-col">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h2 class="text-2xl font-mono font-bold text-white mb-1" id="detailSeq">PEPTIDE_SEQUENCE</h2>
-                        <div class="flex gap-2 text-xs">
-                            <span class="bg-slate-800 px-2 py-0.5 rounded text-slate-400 border border-slate-700">ID:
-                                <span id="detailId" class="text-slate-200">---</span></span>
-                            <span
-                                class="bg-slate-800 px-2 py-0.5 rounded text-slate-400 border border-slate-700">Charge:
-                                <span id="detailCharge" class="text-emerald-400 font-bold">---</span></span>
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            <!-- Top Pane -->
+            <section class="dashboard-card dashboard-card--figure">
+                <div class="dashboard-figure-label" id="figureLabel">FIGURE 1: HYDROPHOBICITY vs. MW</div>
+                <div id="scatterPlot" class="dashboard-figure"></div>
+            </section>
+
+            <!-- Bottom Pane -->
+            <section class="dashboard-card dashboard-card--detail">
+                <div id="detailView" class="dashboard-detail hidden">
+                    <div class="dashboard-detail__header">
+                        <div>
+                            <h2 id="detailSeq"></h2>
+                            <div class="dashboard-detail__meta">
+                                <span class="dashboard-chip">ID: <span id="detailId">---</span></span>
+                                <span class="dashboard-chip">Charge: <span id="detailCharge">---</span></span>
+                            </div>
+                        </div>
+                        <div class="dashboard-detail__intensity">
+                            <div>Intensity</div>
+                            <div id="detailIntensity">---</div>
                         </div>
                     </div>
-                    <div class="text-right">
-                        <div class="text-sm text-slate-400">Intensity</div>
-                        <div class="text-xl font-mono text-emerald-400" id="detailIntensity">---</div>
-                    </div>
-                </div>
 
-                <div class="grid grid-cols-3 gap-4 mt-2">
-                    <div class="bg-slate-950 p-4 rounded border border-slate-800">
-                        <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Hydrophobicity</div>
-                        <div class="text-2xl font-mono text-white" id="detailHydro">---</div>
-                        <div class="w-full bg-slate-900 h-1 mt-2 rounded-full overflow-hidden">
-                            <div id="barHydro" class="bg-blue-500 h-full" style="width: 0%"></div>
+                    <div class="dashboard-stat-grid">
+                        <div class="dashboard-stat">
+                            <div class="dashboard-stat__label">Hydrophobicity</div>
+                            <div class="dashboard-stat__value" id="detailHydro">---</div>
+                            <div class="dashboard-progress">
+                                <div id="barHydro" class="dashboard-progress__bar" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <div class="dashboard-stat">
+                            <div class="dashboard-stat__label">Molecular Weight</div>
+                            <div class="dashboard-stat__value" id="detailMW">---</div>
+                            <div class="dashboard-stat__hint">Daltons</div>
+                        </div>
+                        <div class="dashboard-stat">
+                            <div class="dashboard-stat__label">Length</div>
+                            <div class="dashboard-stat__value" id="detailLen">---</div>
+                            <div class="dashboard-stat__hint">Amino Acids</div>
                         </div>
                     </div>
-                    <div class="bg-slate-950 p-4 rounded border border-slate-800">
-                        <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Molecular Weight</div>
-                        <div class="text-2xl font-mono text-white" id="detailMW">---</div>
-                        <div class="text-xs text-slate-600 mt-1">Daltons</div>
-                    </div>
-                    <div class="bg-slate-950 p-4 rounded border border-slate-800">
-                        <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Length</div>
-                        <div class="text-2xl font-mono text-white" id="detailLen">---</div>
-                        <div class="text-xs text-slate-600 mt-1">Amino Acids</div>
+
+                    <div class="dashboard-actions">
+                        <h3>Analysis Tools</h3>
+                        <div class="dashboard-action-buttons">
+                            <button id="foldStructureBtn" class="btn btn-primary btn-small">Fold Structure</button>
+                            <button class="btn btn-secondary btn-small" disabled title="Coming soon">Find Similar</button>
+                            <button class="btn btn-secondary btn-small" disabled title="Coming soon">Predict Binding</button>
+                            <button class="btn btn-secondary btn-small" disabled title="Coming soon">Export FASTA</button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="mt-6 pt-4 border-t border-slate-800">
-                    <h3 class="text-sm font-semibold text-slate-400 mb-2">Analysis Tools</h3>
-                    <div class="flex gap-3 flex-wrap">
-                        <button
-                            id="foldStructureBtn"
-                            class="px-3 py-1.5 bg-emerald-500/10 border border-emerald-400/40 rounded text-xs text-emerald-100 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-500/20"
-                            type="button">
-                            Fold Structure
-                        </button>
-                        <button
-                            class="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded text-xs text-slate-500 cursor-not-allowed"
-                            title="This control is not wired for the demo yet."
-                            disabled aria-disabled="true">
-                            Find Similar (coming soon)
-                        </button>
-                        <button
-                            class="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded text-xs text-slate-500 cursor-not-allowed"
-                            title="Binding prediction is not enabled in this demo build."
-                            disabled aria-disabled="true">
-                            Predict Binding (coming soon)
-                        </button>
-                        <button
-                            class="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded text-xs text-slate-500 cursor-not-allowed"
-                            title="FASTA export will be re-enabled after validation."
-                            disabled aria-disabled="true">
-                            Export FASTA (coming soon)
-                        </button>
-                    </div>
+                <div id="emptyState" class="dashboard-empty dashboard-empty--large">
+                    <p>Select a data point to view biophysical details</p>
                 </div>
-            </div>
-
-            <!-- Empty State -->
-            <div id="emptyState" class="h-full flex items-center justify-center text-slate-600 flex-col">
-                <svg class="w-12 h-12 mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
-                    </path>
-                </svg>
-                <p>Select a data point to view biophysical details</p>
-            </div>
-        </div>
-    </main>
+            </section>
+        </main>
+    </div>
 
     <script>
         // --- State ---
         let currentData = [];
         let selectedFeatureMeta = null;
+        const runSelect = document.getElementById('runSelect');
         const foldStructureBtn = document.getElementById('foldStructureBtn');
         const foldBtnDefaultLabel = foldStructureBtn ? foldStructureBtn.textContent.trim() : "Fold Structure";
 
@@ -213,9 +176,9 @@
                 return;
             }
 
-            const runId = document.getElementById('runIdInput').value.trim();
+            const runId = runSelect.value.trim();
             if (!runId) {
-                alert("Please enter a Run ID before triggering structure analysis.");
+                alert("Please select a Run ID before triggering structure analysis.");
                 return;
             }
 
@@ -287,12 +250,14 @@
         }
 
         // --- Real Data Load ---
-        async function loadRealData() {
-            const runId = document.getElementById('runIdInput').value.trim();
+        async function loadRealData(runOverride) {
+            const runId = (runOverride || runSelect.value || "").trim();
             if (!runId) {
-                alert("Please enter a Run ID");
+                alert("Please select a Run ID");
                 return;
             }
+            runSelect.value = runId;
+            updateUrl(runId);
 
             try {
                 const btn = document.querySelector('button[onclick="loadRealData()"]');
@@ -300,7 +265,10 @@
                 btn.innerText = "LOADING...";
                 btn.disabled = true;
 
-                const res = await fetch(`/dashboard-data/${runId}`);
+                const token = localStorage.getItem('token');
+                const res = await fetch(`/dashboard-data/${runId}`, {
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                });
                 if (!res.ok) throw new Error("Failed to fetch data");
 
                 const json = await res.json();
@@ -310,10 +278,91 @@
                 btn.disabled = false;
             } catch (e) {
                 alert("Error loading data: " + e.message);
-                document.querySelector('button[onclick="loadRealData()"]').innerText = "LOAD RUN";
-                document.querySelector('button[onclick="loadRealData()"]').disabled = false;
+                const retryBtn = document.querySelector('button[onclick="loadRealData()"]');
+                retryBtn.innerText = "Load Run";
+                retryBtn.disabled = false;
             }
         }
+
+        function updateUrl(runId) {
+            const url = new URL(window.location.href);
+            if (runId) {
+                url.searchParams.set('run_id', runId);
+            } else {
+                url.searchParams.delete('run_id');
+            }
+            window.history.replaceState({}, '', url.toString());
+        }
+
+        async function populateRunSelect(activeRunId) {
+            const token = localStorage.getItem('token');
+            const setOptions = (runIds) => {
+                const unique = [];
+                const seen = new Set();
+                runIds.forEach(id => {
+                    if (id && !seen.has(id)) {
+                        seen.add(id);
+                        unique.push(id);
+                    }
+                });
+                if (activeRunId && !seen.has(activeRunId)) {
+                    unique.unshift(activeRunId);
+                }
+                runSelect.innerHTML = '<option value="">Select a run...</option>';
+                unique.forEach(id => {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = id;
+                    runSelect.appendChild(option);
+                });
+                if (activeRunId && unique.includes(activeRunId)) {
+                    runSelect.value = activeRunId;
+                } else if (unique.length) {
+                    runSelect.value = unique[0];
+                }
+            };
+
+            if (!token) {
+                setOptions(activeRunId ? [activeRunId] : []);
+                return;
+            }
+
+            try {
+                const res = await fetch('/runs', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) {
+                    throw new Error('Failed to load runs');
+                }
+                const payload = await res.json();
+                const ids = Array.isArray(payload.runs)
+                    ? payload.runs.map(run => run.run_id).filter(Boolean)
+                    : [];
+                setOptions(ids.length ? ids : (activeRunId ? [activeRunId] : []));
+            } catch (err) {
+                console.warn('Failed to fetch runs', err);
+                setOptions(activeRunId ? [activeRunId] : []);
+            }
+        }
+
+        runSelect.addEventListener('change', () => {
+            const runId = runSelect.value.trim();
+            updateUrl(runId);
+            if (runId) {
+                loadRealData();
+            }
+        });
+
+        (async function initDashboard() {
+            const params = new URLSearchParams(window.location.search);
+            const runId = params.get('run_id');
+            await populateRunSelect(runId);
+            if (runId) {
+                loadRealData(runId);
+            } else if (runSelect.value.trim()) {
+                loadRealData(runSelect.value.trim());
+            }
+        })();
 
         // --- Rendering ---
         function renderDashboard(data) {
@@ -322,16 +371,17 @@
 
             renderList(data);
 
-            // Check if we have stats for Volcano Plot
-            const hasStats = data.some(d => d.stats && d.stats.fold_change !== undefined);
-
-            if (hasStats) {
-                renderVolcano(data);
-                // Update title
-                document.querySelector('.absolute.top-4.left-4').innerText = "FIGURE 1: VOLCANO PLOT (Differential Expression)";
+            const figureLabel = document.getElementById('figureLabel');
+            const hasVolcano = renderVolcano(data);
+            if (hasVolcano) {
+                if (figureLabel) {
+                    figureLabel.innerText = "FIGURE 1: VOLCANO PLOT (Differential Expression)";
+                }
             } else {
                 renderScatter(data);
-                document.querySelector('.absolute.top-4.left-4').innerText = "FIGURE 1: HYDROPHOBICITY vs. MW";
+                if (figureLabel) {
+                    figureLabel.innerText = "FIGURE 1: HYDROPHOBICITY vs. MW";
+                }
             }
         }
 
@@ -341,29 +391,20 @@
 
             data.forEach((p, idx) => {
                 const div = document.createElement('div');
-                div.className = "p-2 border-b border-slate-800 hover:bg-slate-800 cursor-pointer transition-colors group";
+                div.className = "dashboard-peptide";
                 div.onclick = () => selectPeptide(idx);
 
-                // Color code significant items if stats exist
-                let sigClass = "";
-                if (p.stats && p.stats.q_value < 0.05 && Math.abs(p.stats.fold_change) > 1) {
-                    sigClass = "border-l-2 border-emerald-500 pl-1.5";
-                }
-
-                  div.innerHTML = `
-                      <div class="${sigClass}">
-                          <div class="flex justify-between items-baseline">
-                              <span class="font-mono text-xs font-bold truncate w-32 text-emerald-400 hover:text-emerald-300 hover:underline">
-                                  <a href="/static/search.html?run_id=${encodeURIComponent(document.getElementById('runIdInput').value || '')}&sequence=${encodeURIComponent(p.sequence)}">${p.sequence}</a>
-                              </span>
-                              <span class="text-[10px] text-slate-500">${p.intensity.toExponential(1)}</span>
-                          </div>
-                          <div class="flex justify-between mt-1 text-[10px] text-slate-600 group-hover:text-slate-400">
-                              <span>MW: ${p.properties.molecular_weight}</span>
-                              <span>Hyd: ${p.properties.hydrophobicity}</span>
-                          </div>
-                      </div>
-                  `;
+                const runId = runSelect.value || '';
+                div.innerHTML = `
+                    <div class="dashboard-peptide__title">
+                        <a href="/static/search.html?run_id=${encodeURIComponent(runId)}&sequence=${encodeURIComponent(p.sequence)}">${p.sequence}</a>
+                    </div>
+                    <div class="dashboard-peptide__meta">
+                        <span>MW: ${p.properties.molecular_weight}</span>
+                        <span>Hyd: ${p.properties.hydrophobicity}</span>
+                        <span>${p.intensity.toExponential(1)}</span>
+                    </div>
+                `;
                 list.appendChild(div);
             });
         }
@@ -403,6 +444,11 @@
         function renderVolcano(data) {
             // Filter out invalid data points
             const validData = data.filter(d => d.stats && d.stats.fold_change !== null && d.stats.q_value !== null);
+
+            if (!validData.length) {
+                Plotly.purge('scatterPlot');
+                return false;
+            }
 
             // Create colors based on significance
             const colors = validData.map(d => {
@@ -450,6 +496,8 @@
                 const originalIndex = currentData.indexOf(selectedObj);
                 selectPeptide(originalIndex);
             });
+
+            return true;
         }
 
         function selectPeptide(index) {
@@ -464,9 +512,9 @@
             const detailSeqEl = document.getElementById('detailSeq');
             detailSeqEl.innerHTML = '';
             const seqLink = document.createElement('a');
-            seqLink.href = `/static/search.html?run_id=${encodeURIComponent(document.getElementById('runIdInput').value || '')}&sequence=${encodeURIComponent(p.sequence)}`;
+            seqLink.href = `/static/search.html?run_id=${encodeURIComponent(runSelect.value || '')}&sequence=${encodeURIComponent(p.sequence)}`;
             seqLink.textContent = p.sequence;
-            seqLink.className = "text-emerald-400 hover:text-emerald-300 hover:underline";
+            seqLink.className = "dashboard-link";
             detailSeqEl.appendChild(seqLink);
             document.getElementById('detailId').innerText = p.feature_id;
             document.getElementById('detailCharge').innerText = p.properties.charge > 0 ? `+${p.properties.charge}` : p.properties.charge;
@@ -480,12 +528,9 @@
             const hydroPct = ((p.properties.hydrophobicity + 4.5) / 9) * 100;
             const bar = document.getElementById('barHydro');
             bar.style.width = `${Math.max(0, Math.min(100, hydroPct))}%`;
-            // Color shift
-            if (p.properties.hydrophobicity > 0) {
-                bar.className = "h-full bg-rose-500"; // Hydrophobic
-            } else {
-                bar.className = "h-full bg-blue-500"; // Hydrophilic
-            }
+            bar.className = p.properties.hydrophobicity > 0
+                ? "dashboard-progress__bar dashboard-progress__bar--positive"
+                : "dashboard-progress__bar dashboard-progress__bar--negative";
 
             // Show Stats if available
             if (p.stats && p.stats.fold_change !== undefined) {

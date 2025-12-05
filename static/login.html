@@ -1,66 +1,41 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
-
 <head>
-    <title>Immuno-Engine - Login</title>
+    <title>OmicsToken - Login</title>
     <link rel="stylesheet" href="/static/style.css">
-    <style>
-        body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .login-card {
-            width: 100%;
-            max-width: 400px;
-        }
-
-        .brand {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .brand h1 {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .brand p {
-            color: var(--text-secondary);
-        }
-    </style>
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
 
-<body>
-    <div class="card login-card">
-        <div class="brand">
-            <h1>Immuno-Engine</h1>
-            <p>Next-Gen Proteomics Intelligence</p>
-        </div>
-
-        <div id="error"
-            style="display:none; color: var(--danger-color); background: rgba(239, 68, 68, 0.1); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; text-align: center;">
-            Login failed
-        </div>
-
-        <form id="loginForm">
-            <div style="margin-bottom: 1rem;">
-                <label for="username">Email</label>
-                <input type="email" id="username" placeholder="name@example.com" required value="test@example.com">
+<body class="auth-body">
+    <main class="auth-shell">
+        <section class="auth-card">
+            <div class="auth-brand">
+                <h1>OmicsToken</h1>
+                <p>Next-Gen Proteomics Intelligence</p>
             </div>
-            <div style="margin-bottom: 1.5rem;">
-                <label for="password">Password</label>
-                <input type="password" id="password" placeholder="••••••••" required value="password123">
-            </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
-        </form>
 
-        <div style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">
-            <span class="text-muted">New here?</span>
-            <a href="#" onclick="register()">Create Account</a>
-        </div>
-    </div>
+            <div id="error" class="auth-error">
+                Login failed
+            </div>
+
+            <form id="loginForm" class="auth-form">
+                <div style="margin-bottom: 1rem;">
+                    <label for="username">Email</label>
+                    <input type="email" id="username" placeholder="name@example.com" required>
+                </div>
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary auth-btn">Sign In</button>
+            </form>
+
+            <div class="auth-footer">
+                <span class="text-muted">New here?</span>
+                <a href="#" onclick="register()">Create Account</a>
+            </div>
+        </section>
+    </main>
 
     <script>
         const API_URL = "http://127.0.0.1:8080";
@@ -120,13 +95,14 @@
                     localStorage.setItem('token', data.access_token);
                     window.location.href = '/static/runs.html'; // Direct to runs page
                 } else {
-                    document.getElementById('error').style.display = 'block';
-                    document.getElementById('error').innerText = "Invalid credentials";
+                    const errorEl = document.getElementById('error');
+                    errorEl.style.display = 'block';
+                    errorEl.innerText = "Invalid credentials";
                 }
             } catch (e) {
-                console.error(e);
-                document.getElementById('error').style.display = 'block';
-                document.getElementById('error').innerText = e.message;
+                const errorEl = document.getElementById('error');
+                errorEl.style.display = 'block';
+                errorEl.innerText = e.message;
             } finally {
                 btn.innerText = "Sign In";
                 btn.disabled = false;

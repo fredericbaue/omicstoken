@@ -28,6 +28,7 @@ from datetime import datetime
 import io
 import zipfile
 import json
+from pathlib import Path
 
 import embeddings
 from embeddings import peptide_to_vector, EMBEDDING_DIM
@@ -1204,6 +1205,38 @@ def get_dashboard_data(run_id: str, user: User = Depends(current_active_user)):
         }
     finally:
         con.close()
+
+
+@app.get("/api/runs/{run_id}/data")
+def get_run_data(run_id: str):
+    """
+    Serve dashboard-friendly CSV data with fallback to demo dataset.
+    """
+    base_dir = Path("demo_data")
+    requested_path = base_dir / f"{run_id}.csv"
+    fallback_path = base_dir / "demo_tumor_data.csv"
+
+    if requested_path.exists():
+        source_path = requested_path
+    else:
+        source_path = fallback_path
+
+    if not source_path.exists():
+        raise HTTPException(status_code=404, detail="Demo data not found on server.")
+
+    print(f"Serving data for {run_id} (Source: {source_path})")
+
+    try:
+        df = pd.read_csv(source_path)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to read data: {exc}")
+
+    records = df.where(pd.notnull(df), None).to_dict(orient="records")
+    return {
+        "requested_run_id": run_id,
+        "source_file": str(source_path),
+        "records": records,
+    }
 
 # Mount static files (must be after all routes)
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
