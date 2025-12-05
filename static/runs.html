@@ -49,6 +49,12 @@
         .modal-card h3 { margin-top: 0; margin-bottom: 0.5rem; }
         .modal-card p { margin: 0.35rem 0; color: var(--text-muted); }
         .modal-actions { margin-top: 1rem; text-align: right; }
+        .summary-content {
+            margin-top: 0.75rem;
+            white-space: pre-wrap;
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
         .upload-success {
             display: none;
             margin: 1.5rem 0;
@@ -174,6 +180,17 @@
         </div>
     </div>
 </div>
+
+<div id="summary-modal-backdrop" class="modal-backdrop" aria-hidden="true">
+    <div id="summary-modal" class="modal-card" role="dialog" aria-modal="true" aria-labelledby="summary-modal-title">
+        <h3 id="summary-modal-title">Run Summary</h3>
+        <p id="summary-modal-status" class="text-muted"></p>
+        <div id="summary-modal-content" class="summary-content"></div>
+        <div class="modal-actions">
+            <button id="summary-modal-close" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
 <footer style="text-align:center; padding: 1.5rem 0; border-top: 1px solid #ddd; margin-top: 2rem;">
   <a href="/static/terms.html" target="_blank">Terms</a>
   &nbsp;·&nbsp;
@@ -187,6 +204,11 @@
     const creditsModalBackdrop = document.getElementById('credits-modal-backdrop');
     const creditsModalBalance = document.getElementById('credits-modal-balance');
     const creditsModalClose = document.getElementById('credits-modal-close');
+    const summaryModalBackdrop = document.getElementById('summary-modal-backdrop');
+    const summaryModalContent = document.getElementById('summary-modal-content');
+    const summaryModalClose = document.getElementById('summary-modal-close');
+    const summaryModalTitle = document.getElementById('summary-modal-title');
+    const summaryModalStatus = document.getElementById('summary-modal-status');
         const urlParams = new URLSearchParams(window.location.search);
         const uploadedRunIds = (urlParams.get('uploaded_runs') || '')
             .split(',')
@@ -197,6 +219,7 @@
             .map(name => name.trim())
             .filter(Boolean);
         let latestUserCredits = 0;
+        let runsPollingInterval = null;
 
         function hideSkeleton() {
             const skeleton = document.getElementById('runsSkeleton');
@@ -303,7 +326,7 @@
                             ${renderHint(run)}
                             <div class="actions-row" role="group" aria-label="Run actions">
                                 <a href="/static/dashboard.html?run_id=${run.run_id}" class="btn btn-primary">Dashboard</a>
-                                <button onclick="generateSummary('${run.run_id}')" class="btn btn-secondary">Summary</button>
+                                <button onclick="generateSummary('${run.run_id}', this)" class="btn btn-secondary">Summary</button>
                                 <a href="/static/search.html?run_id=${run.run_id}" class="btn btn-secondary">Search</a>
 
                                 <div class="dropdown">
@@ -321,6 +344,9 @@
                         runsList.appendChild(card);
                     });
                     applyFilters();
+                    if (runs.length > 0) {
+                        startRunsPolling(token);
+                    }
                 }
             } catch (e) {
                 loadingEl.innerHTML = `<span style="color: red;">Error: ${e.message}</span>`;
@@ -507,6 +533,29 @@
             creditsDisplay.focus();
         }
 
+        function openSummaryModal(contentText, runId) {
+            if (!summaryModalBackdrop) {
+                return;
+            }
+            if (summaryModalTitle) {
+                summaryModalTitle.textContent = runId ? `Run Summary (${runId})` : 'Run Summary';
+            }
+            if (summaryModalStatus) {
+                summaryModalStatus.textContent = runId ? `Run ID: ${runId}` : '';
+            }
+            summaryModalContent.textContent = contentText;
+            summaryModalBackdrop.classList.add('active');
+            summaryModalBackdrop.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeSummaryModal() {
+            if (!summaryModalBackdrop) {
+                return;
+            }
+            summaryModalBackdrop.classList.remove('active');
+            summaryModalBackdrop.setAttribute('aria-hidden', 'true');
+        }
+
         creditsDisplay.addEventListener('click', openCreditsModal);
         creditsDisplay.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' || event.key === ' ') {
@@ -520,9 +569,24 @@
                 closeCreditsModal();
             }
         });
+        if (summaryModalClose) {
+            summaryModalClose.addEventListener('click', closeSummaryModal);
+        }
+        if (summaryModalBackdrop) {
+            summaryModalBackdrop.addEventListener('click', (event) => {
+                if (event.target === summaryModalBackdrop) {
+                    closeSummaryModal();
+                }
+            });
+        }
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && creditsModalBackdrop.classList.contains('active')) {
-                closeCreditsModal();
+            if (event.key === 'Escape') {
+                if (creditsModalBackdrop.classList.contains('active')) {
+                    closeCreditsModal();
+                }
+                if (summaryModalBackdrop && summaryModalBackdrop.classList.contains('active')) {
+                    closeSummaryModal();
+                }
             }
         });
 
@@ -560,6 +624,49 @@
             }
         }
 
+        async function generateSummary(runId, buttonEl) {
+            closeAllDropdowns();
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Please log in to view run summaries.');
+                return;
+            }
+            const button = buttonEl || null;
+            const originalText = button ? button.textContent : '';
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Loading...';
+            }
+            openSummaryModal('Generating summary...', runId);
+            try {
+                const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/summary`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!response.ok) {
+                    let message = `Failed to fetch summary (status ${response.status})`;
+                    try {
+                        const errorData = await response.json();
+                        if (errorData && errorData.detail) {
+                            message = errorData.detail;
+                        }
+                    } catch (parseErr) {
+                        // ignore JSON parse errors
+                    }
+                    summaryModalContent.textContent = message;
+                    return;
+                }
+                const data = await response.json();
+                summaryModalContent.textContent = data.summary || 'Summary is not available yet.';
+            } catch (e) {
+                summaryModalContent.textContent = `Error fetching summary: ${e.message}`;
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = originalText;
+                }
+            }
+        }
+
         async function deleteRun(runId) {
             closeAllDropdowns();
             if (!confirm(`Are you sure you want to delete run "${runId}"?\nThis action cannot be undone.`)) {
@@ -584,6 +691,50 @@
                 alert(`An error occurred: ${e.message}`);
             }
         }
+
+        function startRunsPolling(token) {
+            if (runsPollingInterval) {
+                return;
+            }
+            runsPollingInterval = setInterval(async () => {
+                const topCard = document.querySelector('.run-card');
+                if (!topCard) {
+                    return;
+                }
+                const targetRunId = topCard.dataset.runId;
+                const previousStatus = topCard.dataset.status;
+                if (!targetRunId) {
+                    return;
+                }
+                try {
+                    const response = await fetch('/runs', {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    if (!response.ok) {
+                        return;
+                    }
+                    const data = await response.json();
+                    const latestRuns = data.runs || [];
+                    const currentRun = latestRuns.find(run => (run.run_id || '') === targetRunId);
+                    if (!currentRun) {
+                        return;
+                    }
+                    const nextStatus = computeStatus(currentRun);
+                    if (previousStatus !== nextStatus.key && nextStatus.key === 'ready') {
+                        window.location.reload();
+                    }
+                } catch (err) {
+                    console.warn('Run status polling failed', err);
+                }
+            }, 3000);
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (runsPollingInterval) {
+                clearInterval(runsPollingInterval);
+                runsPollingInterval = null;
+            }
+        });
     </script>
 </body>
 </html>

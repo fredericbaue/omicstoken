@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, Response
 from fastapi import Request
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 import os
 import shutil
@@ -21,7 +22,7 @@ import uuid
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import logging
 from datetime import datetime
 import io
@@ -39,7 +40,7 @@ import export
 import auth
 import config
 from datetime import datetime
-from worker import queue_embed_run, queue_generate_summary
+from worker import queue_embed_run
 from auth import current_active_user, current_active_user_or_token, User
 from pipeline import calculate_properties, run_embedding_pipeline
 
@@ -53,6 +54,7 @@ DATA_DIR = config.DATA_DIR
 app = FastAPI(title="Immuno-Peptidomics MVP")
 
 # CORS (Optional, good for dev)
+# --- CSP FIX START ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -60,6 +62,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class CSPFixMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        # Force relaxed CSP for Alpine.js/HTMX
+        response.headers["Content-Security-Policy"] = (
+            "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;"
+        )
+        return response
+
+
+app.add_middleware(CSPFixMiddleware)
+# --- CSP FIX END ---
 
 def _get_user_identifier(request: Request) -> str:
     """Best-effort extraction of a user identifier for logging."""
@@ -401,11 +417,27 @@ Explain in 2 short paragraphs what's interesting about this peptide. Mention any
     finally:
         con.close()
 
-@app.post("/summary/run/{run_id}")
-def get_run_summary(run_id: str, user: User = Depends(current_active_user)):
-    """
-    Generates a text summary of the run using the Summarization Engine.
-    """
+def _extract_summary_text(summary_payload: Any) -> Optional[str]:
+    if summary_payload is None:
+        return None
+    if isinstance(summary_payload, str):
+        return summary_payload.strip()
+    if isinstance(summary_payload, dict):
+        for key in ("summary_text", "summary"):
+            value = summary_payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        error_text = summary_payload.get("error")
+        if isinstance(error_text, str) and error_text.strip():
+            return f"Summary unavailable: {error_text.strip()}"
+        try:
+            return json.dumps(summary_payload, indent=2)
+        except Exception:
+            return str(summary_payload)
+    return str(summary_payload)
+
+
+def _load_or_create_summary_payload(run_id: str, user: User):
     con = db.get_db_connection(DATA_DIR)
     try:
         run = db.get_run(con, run_id)
@@ -415,33 +447,22 @@ def get_run_summary(run_id: str, user: User = Depends(current_active_user)):
                 detail="Run not found",
             )
 
-        summary_result = None
-        # Prefer Celery to keep the request thread light; fall back inline if the worker is unavailable.
-        try:
-            job = queue_generate_summary(run_id)
-            LOGGER.info(
-                "Dispatched generate_summary_task for run %s from /summary/run (task_id=%s, broker=%s)",
-                run_id,
-                job.id,
-                config.CELERY_BROKER_URL,
-            )
-            try:
-                summary_result = job.get(timeout=60)
-            except Exception as celery_err:
-                LOGGER.warning(
-                    "Celery summary fetch failed for run %s; falling back inline: %s",
-                    run_id,
-                    celery_err,
-                )
-        except Exception as e:
-            LOGGER.warning(
-                "Celery dispatch for summary failed for run %s; falling back inline: %s",
-                run_id,
-                e,
-            )
+        run_meta = run.meta or {}
+        cached_summary = run_meta.get("cached_summary")
+        if isinstance(cached_summary, dict):
+            return cached_summary
 
-        if summary_result is None:
-            summary_result = summarizer.generate_summary(run_id, con)
+        summary_result = summarizer.generate_summary(run_id, con)
+        update_payload: Dict[str, Any] = {
+            "cached_summary": summary_result,
+            "summary_pending": False,
+        }
+        if isinstance(summary_result, dict) and summary_result.get("error"):
+            update_payload["last_summary_error"] = summary_result.get("error")
+        else:
+            update_payload["last_summary_error"] = None
+            update_payload["summary_generated_at"] = datetime.utcnow().isoformat() + "Z"
+        db.update_run_meta(con, run_id, update_payload)
         return summary_result
     except HTTPException:
         raise
@@ -452,6 +473,30 @@ def get_run_summary(run_id: str, user: User = Depends(current_active_user)):
         )
     finally:
         con.close()
+
+
+@app.get("/api/runs/{run_id}/summary")
+def get_run_summary(run_id: str, user: User = Depends(current_active_user)):
+    """
+    Retrieve (and cache) the latest Gemini summary for a run.
+    """
+    summary_payload = _load_or_create_summary_payload(run_id, user)
+    summary_text = _extract_summary_text(summary_payload)
+    if not summary_text:
+        raise HTTPException(
+            status_code=500,
+            detail="Summary result did not include any text.",
+        )
+    return {"summary": summary_text}
+
+
+@app.post("/summary/run/{run_id}")
+def legacy_get_run_summary(run_id: str, user: User = Depends(current_active_user)):
+    """
+    Legacy summary endpoint retained for compatibility with existing tooling.
+    Returns the full structured payload from the Gemini summarizer.
+    """
+    return _load_or_create_summary_payload(run_id, user)
 
 @app.get("/runs")
 def list_runs(user: User = Depends(current_active_user)):
@@ -512,7 +557,7 @@ def get_run_details(run_id: str, user: User = Depends(current_active_user)):
             },
             "timing": timing_meta or None,
             "links": {
-                "summary": f"/summary/run/{run_id}",
+                "summary": f"/api/runs/{run_id}/summary",
                 "search_example": f"/peptide/search/{run_id}/{first_feature_id}" if first_feature_id else None
             }
         }
