@@ -156,19 +156,37 @@
             </div>
         </div>
 
-        <div id="runsList" class="grid" style="--grid-cols: 1; gap: 1rem;">
-            <!-- Run cards will be inserted here -->
-        </div>
-        <p id="loading" class="text-center text-muted" style="padding: 2rem;">Loading runs...</p>
+    <div id="runsList" class="grid" style="--grid-cols: 1; gap: 1rem;">
+        <!-- Run cards will be inserted here -->
     </div>
+    <p id="loading" class="text-center text-muted" style="padding: 2rem;">Loading runs...</p>
+</div>
 
-    <script>
-        const searchInput = document.getElementById('run-search');
-        const statusFilter = document.getElementById('status-filter');
-        const creditsDisplay = document.getElementById('credits-display');
-        const creditsModalBackdrop = document.getElementById('credits-modal-backdrop');
-        const creditsModalBalance = document.getElementById('credits-modal-balance');
-        const creditsModalClose = document.getElementById('credits-modal-close');
+<div id="credits-modal-backdrop" class="modal-backdrop" aria-hidden="true">
+    <div id="credits-modal" class="modal-card" role="dialog" aria-modal="true" aria-labelledby="credits-modal-title">
+        <h3 id="credits-modal-title">Usage & Credits</h3>
+        <p id="credits-modal-balance" class="text-muted">You currently have -- credits.</p>
+        <p>Uploads and AI-powered features (summaries, explanations, advanced search) consume credits.</p>
+        <p>When your balance is low, some features may be limited.</p>
+        <p style="font-style: italic;">Coming soon: upgrade plans for higher-throughput labs and teams.</p>
+        <div class="modal-actions">
+            <button id="credits-modal-close" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
+<footer style="text-align:center; padding: 1.5rem 0; border-top: 1px solid #ddd; margin-top: 2rem;">
+  <a href="/static/terms.html" target="_blank">Terms</a>
+  &nbsp;·&nbsp;
+  <a href="/static/privacy.html" target="_blank">Privacy</a>
+</footer>
+
+<script>
+    const searchInput = document.getElementById('run-search');
+    const statusFilter = document.getElementById('status-filter');
+    const creditsDisplay = document.getElementById('credits-display');
+    const creditsModalBackdrop = document.getElementById('credits-modal-backdrop');
+    const creditsModalBalance = document.getElementById('credits-modal-balance');
+    const creditsModalClose = document.getElementById('credits-modal-close');
         const urlParams = new URLSearchParams(window.location.search);
         const uploadedRunIds = (urlParams.get('uploaded_runs') || '')
             .split(',')
@@ -567,22 +585,5 @@
             }
         }
     </script>
-    <div id="credits-modal-backdrop" class="modal-backdrop" aria-hidden="true">
-        <div id="credits-modal" class="modal-card" role="dialog" aria-modal="true" aria-labelledby="credits-modal-title">
-            <h3 id="credits-modal-title">Usage & Credits</h3>
-            <p id="credits-modal-balance" class="text-muted">You currently have -- credits.</p>
-            <p>Uploads and AI-powered features (summaries, explanations, advanced search) consume credits.</p>
-            <p>When your balance is low, some features may be limited.</p>
-            <p style="font-style: italic;">Coming soon: upgrade plans for higher-throughput labs and teams.</p>
-            <div class="modal-actions">
-                <button id="credits-modal-close" class="btn btn-secondary">Close</button>
-            </div>
-        </div>
-    </div>
-    <footer style="text-align:center; padding: 1.5rem 0; border-top: 1px solid #ddd; margin-top: 2rem;">
-      <a href="/static/terms.html" target="_blank">Terms</a>
-      &nbsp;·&nbsp;
-      <a href="/static/privacy.html" target="_blank">Privacy</a>
-    </footer>
 </body>
 </html>

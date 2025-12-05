@@ -351,7 +351,13 @@ def get_run_summaries(con: sqlite3.Connection, user_id: Optional[str] = None) ->
             "polarity": row[3],
             "original_filename": meta.get("original_filename"),
             "n_features": row[5],
-            "n_embeddings": row[6]
+            "n_embeddings": row[6],
+            "embedding_pending": meta.get("embedding_pending", False),
+            "indexing_pending": meta.get("indexing_pending", False),
+            "summary_pending": meta.get("summary_pending", False),
+            "upload_started_at": meta.get("upload_started_at"),
+            "upload_queued_at": meta.get("upload_queued_at"),
+            "embed_completed_at": meta.get("embed_completed_at"),
         })
     return results
 

@@ -18,7 +18,6 @@ import random
 import inspect
 import time
 import uuid
-import sqlite3
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
@@ -42,6 +41,7 @@ import config
 from datetime import datetime
 from worker import queue_embed_run, queue_generate_summary
 from auth import current_active_user, current_active_user_or_token, User
+from pipeline import calculate_properties, run_embedding_pipeline
 
 LOGGER = logging.getLogger(__name__)
 REQUEST_LOGGER = logging.getLogger("request_logger")
@@ -143,101 +143,10 @@ app.include_router(
 async def root():
     return RedirectResponse(url="/docs", status_code=307)
 
-def _embed_run(run_id: str, expected_user_id: Optional[str] = None, trigger_rebuild: bool = True):
-    """Shared embedding worker with ownership enforcement, idempotency, and safe DB handling."""
-    con = db.get_db_connection(DATA_DIR)
-    try:
-        run = db.get_run(con, run_id)
-        if run is None or (expected_user_id is not None and str(run.user_id) != str(expected_user_id)):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Run not found",
-            )
-        LOGGER.info("Embedding pipeline start for run %s (user %s)", run_id, run.user_id)
-
-        model_version_id = db.get_or_create_model_version(
-            con,
-            name=config.EMBEDDER_NAME or "esm2",
-            version=config.EMBEDDING_MODEL_NAME,
-            embedding_dim=EMBEDDING_DIM,
-        )
-        features = db.get_features_for_run(con, run_id)
-        if not features:
-            LOGGER.warning("No features found for run %s; skipping embedding.", run_id)
-            return {"run_id": run_id, "peptides_embedded": 0}
-
-        # Idempotency: remove any existing embeddings for this run before re-embedding.
-        con.execute("DELETE FROM peptide_embeddings WHERE run_id=?", (run_id,))
-
-        count = 0
-        total_features = len(features)
-        LOGGER.info("Embedding %s peptides for run %s...", total_features, run_id)
-        for i, feat in enumerate(features):
-            if (i + 1) % 100 == 0:
-                LOGGER.info("Processed %s/%s peptides for run %s", i + 1, total_features, run_id)
-            vec = peptide_to_vector(feat.peptide_sequence)
-
-            if vec is not None and vec.shape[0] == EMBEDDING_DIM:
-                props = calculate_properties(feat.peptide_sequence)
-                try:
-                    db.insert_peptide_embedding(
-                        con,
-                        run_id,
-                        run.user_id,
-                        feat.feature_id,
-                        feat.peptide_sequence,
-                        feat.intensity or 0.0,
-                        props["length"],
-                        props["charge"],
-                        props["hydrophobicity"],
-                        vec,
-                        model_version=config.EMBEDDING_MODEL_NAME,
-                        model_version_id=model_version_id,
-                    )
-                    count += 1
-                except sqlite3.IntegrityError as ie:
-                    LOGGER.warning(
-                        "Duplicate embedding skipped for feature %s in run %s (%s)",
-                        feat.feature_id,
-                        run_id,
-                        ie,
-                    )
-            else:
-                LOGGER.warning(
-                    "Skipping embedding for feature %s in run %s due to invalid sequence/vector.",
-                    feat.feature_id,
-                    run_id,
-                )
-
-        con.commit()
-        LOGGER.info(
-            "Embedding pipeline completed for run %s: stored %s/%s embeddings",
-            run_id,
-            count,
-            total_features,
-        )
-        if trigger_rebuild:
-            try:
-                search.rebuild_faiss_index(None, DATA_DIR, triggered_by_run=run_id)
-                LOGGER.info("FAISS index rebuild completed after embedding run %s", run_id)
-            except Exception as e:
-                LOGGER.exception("FAISS index rebuild failed after embedding run %s: %s", run_id, e)
-        return {"run_id": run_id, "peptides_embedded": count}
-    except HTTPException:
-        con.rollback()
-        raise
-    except Exception as e:
-        con.rollback()
-        LOGGER.exception("Embedding failed for run %s: %s", run_id, e)
-        raise HTTPException(status_code=500, detail="Embedding failed due to an internal error.")
-    finally:
-        con.close()
-
-
 @app.post("/peptide/embed/{run_id}")
 def embed(run_id: str, user: User = Depends(current_active_user)):
     """Vectorize each peptide in a run and persist the vectors."""
-    return _embed_run(run_id, expected_user_id=str(user.id))
+    return run_embedding_pipeline(run_id, expected_user_id=str(user.id))
 
 @app.get("/upload", include_in_schema=False)
 def upload_page():
@@ -290,17 +199,6 @@ async def upload_handler(request: Request,
     }
     run_id_final = meta_dict.get("run_id") or f"RUN_{pd.Timestamp.utcnow().strftime('%Y%m%d_%H%M%S')}"
 
-    # Store in SQLite
-    con = db.get_db_connection(DATA_DIR)
-    db.insert_run(con, run_id_final, meta_dict, user_id=str(user.id))
-
-    for feat in features:
-        db.insert_feature(con, run_id_final, feat)
-        
-    con.commit()
-    db.update_user_credits(con, str(user.id), 10) # Increment credits
-    LOGGER.info("User %s mined 10 credits", user.email)
-    con.close()
     rows_ingested = len(features)
     LOGGER.info(
         "Upload ingested %s features for run %s (user %s, file=%s)",
@@ -310,26 +208,86 @@ async def upload_handler(request: Request,
         name,
     )
 
-    # --- Background Jobs via Celery ---
+    # Store in SQLite
+    con = db.get_db_connection(DATA_DIR)
     try:
-        queued_time = datetime.utcnow().isoformat() + "Z"
-        db.update_run_meta(con, run_id_final, {"upload_queued_at": queued_time})
-        job = queue_embed_run(run_id_final, str(user.id))
-        LOGGER.info(
-            "Dispatched Celery embed_run_task for run %s (user %s, task_id=%s, broker=%s)",
-            run_id_final,
-            user.id,
-            job.id,
-            config.CELERY_BROKER_URL,
-        )
+        db.insert_run(con, run_id_final, meta_dict, user_id=str(user.id))
+
+        for feat in features:
+            db.insert_feature(con, run_id_final, feat)
+
+        con.commit()
+        db.update_user_credits(con, str(user.id), 10)  # Increment credits
+        LOGGER.info("User %s mined 10 credits after upload %s", user.email, run_id_final)
+    except HTTPException:
+        con.rollback()
+        raise
     except Exception as e:
+        con.rollback()
         LOGGER.exception(
-            "Failed to dispatch Celery embed_run_task for run %s (user %s): %s",
+            "Failed to persist upload for run %s (user %s): %s",
             run_id_final,
             user.id,
             e,
         )
-        raise HTTPException(status_code=500, detail="Failed to queue embedding job. Please try again later.")
+        raise HTTPException(status_code=500, detail="Failed to persist uploaded data.")
+    finally:
+        con.close()
+
+    LOGGER.info(
+        "Upload persisted %s features for run %s; preparing to queue embedding",
+        rows_ingested,
+        run_id_final,
+    )
+
+    queued_time = datetime.utcnow().isoformat() + "Z"
+
+    # --- Background Jobs via Celery ---
+    try:
+        LOGGER.info(
+            "Queueing Celery embed_run_task for run %s (user %s, broker=%s)",
+            run_id_final,
+            user.id,
+            config.CELERY_BROKER_URL,
+        )
+        job = queue_embed_run(run_id_final, str(user.id))
+        LOGGER.info(
+            "Dispatched Celery embed_run_task for run %s (user %s, job_id=%s)",
+            run_id_final,
+            user.id,
+            getattr(job, "id", None),
+        )
+    except Exception as e:
+        LOGGER.exception(
+            "Failed to dispatch Celery embed_run_task for run %s (user %s, broker=%s): %s",
+            run_id_final,
+            user.id,
+            config.CELERY_BROKER_URL,
+            e,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to queue embedding job. Please try again later.",
+        )
+
+    meta_con = None
+    try:
+        meta_con = db.get_db_connection(DATA_DIR)
+        db.update_run_meta(
+            meta_con,
+            run_id_final,
+            {
+                "upload_queued_at": queued_time,
+                "embedding_pending": True,
+                "indexing_pending": True,
+                "summary_pending": True,
+            },
+        )
+    except Exception as e:
+        LOGGER.warning("Unable to update upload_queued_at for run %s: %s", run_id_final, e)
+    finally:
+        if meta_con:
+            meta_con.close()
 
     # --- Success Response ---
     first_feature_id = features[0].feature_id if features else None
@@ -412,17 +370,21 @@ Explain in 2 short paragraphs what's interesting about this peptide. Mention any
         # Call Gemini API
         try:
             import google.generativeai as genai
-            GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-            
-            if not GOOGLE_API_KEY:
-                raise HTTPException(500, "GOOGLE_API_KEY not configured")
-            
-            genai.configure(api_key=GOOGLE_API_KEY)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+
+            if not config.HAS_GEMINI_KEY:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Gemini API key not configured. Set GEMINI_API_KEY or GOOGLE_API_KEY to enable explanations.",
+                )
+
+            model = genai.GenerativeModel("gemini-2.5-flash")
             response = model.generate_content(prompt)
             explanation = response.text
-            
+
+        except HTTPException:
+            raise
         except Exception as e:
+            LOGGER.exception("LLM generation failed for run %s feature %s: %s", run_id, feature_id, e)
             raise HTTPException(500, f"LLM generation failed: {str(e)}")
         
         # Return structured response
@@ -1144,28 +1106,6 @@ def create_run_api(payload: UploadRunRequest, user: User = Depends(current_activ
         raise HTTPException(status_code=500, detail="Failed to create run.")
     finally:
         con.close()
-
-# --- Biophysics Logic ---
-from collections import Counter
-
-HYDROPHOBICITY_SCALE = {
-    'A': 1.8, 'R': -4.5, 'N': -3.5, 'D': -3.5, 'C': 2.5, 'Q': -3.5, 'E': -3.5,
-    'G': -0.4, 'H': -3.2, 'I': 4.5, 'L': 3.8, 'K': -3.9, 'M': 1.9, 'F': 2.8,
-    'P': -1.6, 'S': -0.8, 'T': -0.7, 'W': -0.9, 'Y': -1.3, 'V': 4.2
-}
-
-def calculate_properties(sequence: str):
-    if not sequence:
-        return {"hydrophobicity": 0, "molecular_weight": 0, "charge": 0, "length": 0}
-    
-    # Filter for valid amino acids only for hydrophobicity calculation to avoid errors
-    valid_seq = [aa for aa in sequence.upper() if aa in HYDROPHOBICITY_SCALE]
-    hydro = sum(HYDROPHOBICITY_SCALE.get(aa, 0) for aa in valid_seq) / len(valid_seq) if valid_seq else 0
-    
-    mw = export.calculate_molecular_weight(sequence)
-    pos = sum(sequence.upper().count(aa) for aa in ['K', 'R', 'H'])
-    neg = sum(sequence.upper().count(aa) for aa in ['D', 'E'])
-    return {"hydrophobicity": round(hydro, 2), "molecular_weight": mw, "charge": pos - neg, "length": len(sequence)}
 
 @app.get("/dashboard-data/{run_id}")
 def get_dashboard_data(run_id: str, user: User = Depends(current_active_user)):

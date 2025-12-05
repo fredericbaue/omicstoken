@@ -8,6 +8,7 @@ import config
 import search
 import summarizer
 import db
+import pipeline
 from db import insert_protein_structure
 
 LOGGER = logging.getLogger(__name__)
@@ -45,10 +46,13 @@ def _run_structure_analysis(run_id: str, feature_id: str, sequence: str, engine:
 @celery_app.task(name="embed_run_task")
 def embed_run_task(run_id: str, owner_id: str):
     try:
-        from app import _embed_run  # Local import to avoid circular dependencies
         LOGGER.info("embed_run_task start for run %s (owner %s)", run_id, owner_id)
-        result = _embed_run(run_id=run_id, expected_user_id=owner_id, trigger_rebuild=False)
-        if result.get("peptides_embedded", 0) > 0:
+        result = pipeline.run_embedding_pipeline(
+            run_id=run_id, expected_user_id=owner_id, trigger_rebuild=False
+        )
+        embeddings_written = result.get("peptides_embedded", 0)
+        followup_pending = embeddings_written > 0
+        if followup_pending:
             rebuild_job = queue_rebuild_index(run_id, owner_id)
             LOGGER.info(
                 "Queued rebuild_index_task for run %s (task_id=%s)", run_id, getattr(rebuild_job, "id", None)
@@ -72,7 +76,12 @@ def embed_run_task(run_id: str, owner_id: str):
                     duration = (completed_dt - started_dt).total_seconds()
                 except Exception as parse_err:
                     LOGGER.warning("Failed to parse upload_started_at for run %s: %s", run_id, parse_err)
-            update_payload = {"embed_completed_at": completion_time}
+            update_payload = {
+                "embed_completed_at": completion_time,
+                "embedding_pending": False,
+                "indexing_pending": followup_pending,
+                "summary_pending": followup_pending,
+            }
             if duration is not None:
                 update_payload["time_to_embeddings_sec"] = duration
             db.update_run_meta(con, run_id, update_payload)
@@ -93,6 +102,27 @@ def rebuild_index_task(source_run_id: str = None, owner_id: str = None):
             "rebuild_index_task start (source_run_id=%s, owner_id=%s)", source_run_id, owner_id
         )
         n_vectors = search.rebuild_faiss_index(None, config.DATA_DIR, source_run_id)
+        if source_run_id:
+            meta_con = None
+            try:
+                meta_con = db.get_db_connection(config.DATA_DIR)
+                db.update_run_meta(
+                    meta_con,
+                    source_run_id,
+                    {
+                        "indexing_pending": False,
+                        "index_rebuilt_at": datetime.utcnow().isoformat() + "Z",
+                    },
+                )
+            except Exception as meta_err:
+                LOGGER.warning(
+                    "Failed to update indexing metadata for run %s after rebuild: %s",
+                    source_run_id,
+                    meta_err,
+                )
+            finally:
+                if meta_con:
+                    meta_con.close()
         LOGGER.info(
             "FAISS index rebuilt with %s vectors (source_run_id=%s)",
             n_vectors,
@@ -173,6 +203,8 @@ def protein_structure_task(run_id: str, feature_id: str, engine: str = "mock"):
 
 @celery_app.task(name="generate_summary_task")
 def generate_summary_task(run_id: str):
+    summary = None
+    summary_error = None
     try:
         LOGGER.info("generate_summary_task start for run %s", run_id)
         summary = summarizer.generate_summary(run_id)
@@ -180,7 +212,28 @@ def generate_summary_task(run_id: str):
         return summary
     except Exception as e:
         LOGGER.exception("generate_summary_task failed for run %s: %s", run_id, e)
+        summary_error = str(e)
         raise
+    finally:
+        meta_con = None
+        try:
+            meta_con = db.get_db_connection(config.DATA_DIR)
+            update_payload = {
+                "summary_pending": False,
+            }
+            if summary_error:
+                update_payload["last_summary_error"] = summary_error
+            elif summary and isinstance(summary, dict) and "error" in summary:
+                update_payload["last_summary_error"] = summary.get("error")
+            else:
+                update_payload["summary_generated_at"] = datetime.utcnow().isoformat() + "Z"
+                update_payload["last_summary_error"] = None
+            db.update_run_meta(meta_con, run_id, update_payload)
+        except Exception as meta_err:
+            LOGGER.warning("Failed to update summary metadata for run %s: %s", run_id, meta_err)
+        finally:
+            if meta_con:
+                meta_con.close()
 
 
 def queue_embed_run(run_id: str, owner_id: str):
