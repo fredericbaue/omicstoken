@@ -1,5 +1,6 @@
 import os
 import uuid
+import inspect
 import secrets
 import hashlib
 from datetime import datetime
@@ -48,8 +49,12 @@ async def get_user_db(session: AsyncSession = Depends(get_async_session)):
     yield SQLAlchemyUserDatabase(session, User)
 
 # --- Password Helper (The Fix) ---
-# Explicitly use bcrypt to avoid Argon2/C++ dependency issues
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Explicitly support legacy Argon2 hashes while hashing new passwords with bcrypt.
+# If argon2 is unavailable (e.g., missing optional dependency), fall back to bcrypt-only.
+try:
+    pwd_context = CryptContext(schemes=["bcrypt", "argon2"], deprecated="auto")
+except Exception:
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # --- User Manager ---
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
@@ -117,22 +122,39 @@ async def _get_user_from_api_token(raw_token: str) -> Optional[User]:
             return None
         return await session.get(User, uuid.UUID(token_row.user_id))
 
+def get_token_from_request(request: Request) -> Optional[str]:
+    header = request.headers.get("Authorization")
+    if not header:
+        return None
+    if header.startswith("Bearer "):
+        return header.split(" ", 1)[1]
+    return None
+
 
 async def current_active_user_or_token(request: Request) -> User:
-    # Try JWT first
-    try:
-        return await fastapi_users.current_user(active=True)(request)
-    except HTTPException:
-        pass
+    """
+    Resolve the current user either via API token (Authorization: Bearer <token>)
+    or via the standard FastAPI-Users JWT backend.
 
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.lower().startswith("bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing credentials")
-    raw_token = auth_header.split(" ", 1)[1]
-    user = await _get_user_from_api_token(raw_token)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing credentials")
-    return user
+    Order:
+      1. If a Bearer token is present, try API token lookup first.
+      2. If that fails or no token, fall back to FastAPI-Users current_user.
+    """
+    token = get_token_from_request(request)
+
+    if token:
+        user_or_awaitable = _get_user_from_api_token(token)
+        # Support both sync and async implementations of _get_user_from_api_token
+        if inspect.isawaitable(user_or_awaitable):
+            user = await user_or_awaitable
+        else:
+            user = user_or_awaitable
+
+        if user:
+            return user
+
+    # No valid API token – fall back to standard JWT user resolution
+    return await fastapi_users.current_user(active=True)(request)
 
 # --- Init DB Utility ---
 async def create_db_and_tables():

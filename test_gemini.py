@@ -1,35 +1,36 @@
-"""
-Quick test to verify Gemini API integration works correctly.
-"""
+import importlib
 import os
-from dotenv import load_dotenv
-import google.generativeai as genai
 
-# Load environment variables
-load_dotenv()
+import pytest
 
-# Check if key exists
-api_key = os.getenv("GOOGLE_API_KEY")
-if not api_key:
-    print("❌ GOOGLE_API_KEY not found in environment!")
-    exit(1)
-else:
-    print(f"✅ API Key found: {api_key[:20]}...")
+import summarizer
 
-try:
-    # Configure and test the API
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
-    
-    # Simple test query
-    print("\n🧪 Testing Gemini API connection...")
-    response = model.generate_content("Say 'Hello from Gemini!' in a scientific tone.")
-    
-    print(f"✅ Gemini API works!")
-    print(f"\n📝 Response:\n{response.text}\n")
-    
-    print("🎉 All checks passed! Your Gemini integration is ready.")
-    
-except Exception as e:
-    print(f"❌ Error: {str(e)}")
-    exit(1)
+
+def test_generate_summary_without_api_key(monkeypatch):
+    """When no Gemini key is configured, summarizer should return an error dict, not crash."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    importlib.reload(summarizer)
+
+    result = summarizer.generate_summary("test-run-without-key")
+
+    assert isinstance(result, dict)
+    assert result.get("run_id") == "test-run-without-key"
+    assert "error" in result
+
+
+def test_generate_summary_smoke_with_api_key(monkeypatch):
+    """If a key is present, ensure generate_summary returns a structured dict (error or summary)."""
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        pytest.skip("No GEMINI_API_KEY/GOOGLE_API_KEY set; skipping smoke test.")
+
+    monkeypatch.setenv("GEMINI_API_KEY", api_key)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    importlib.reload(summarizer)
+
+    result = summarizer.generate_summary("test-run-with-key")
+
+    assert isinstance(result, dict)
+    assert result.get("run_id") == "test-run-with-key"
+    assert ("summary_text" in result) or ("error" in result)

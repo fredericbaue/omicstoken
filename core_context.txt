@@ -57,15 +57,15 @@ AUTH & USERS:
 
 BUSINESS CONTEXT:
 Short-term:
-- Provide a faster, simpler, insight-driven proteomics workflow for lab scientists.
+- Provide a high-speed, insight-driven proteomics workflow for lab scientists (Horizon 1).
 
 Medium-term:
-- Become a general-purpose tokenization and embedding engine for all omics
-  (proteomics first, then other data types).
+- **Structural Validation (Horizon 2):** Become the authoritative structural validation platform by integrating AlphaFold/AlphaLink with Mass Spectrometry constraints.
+- **Data Fusion:** Evolve to a Multi-Modal Embedding Engine (sequence + structure + experimental context).
 
 Long-term:
-- Enable a privacy-preserving marketplace for tokenized scientific datasets (vectors),
-  where labs can share or license embeddings without exposing raw data.
+- **Generative Biology (Horizon 3):** Pivot to de novo peptide design (OmicsGen) using our proprietary database of validated structures.
+- **DeSci Marketplace:** Enable a privacy-preserving marketplace for tokenized scientific datasets (vectors/Structural IP-NFTs).
 
 PRIMARY CODING RULE:
 Any change must preserve the full demo pipeline and not regress embedding,

@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- Simplified run status chips to friendly scientist labels. -->
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
@@ -6,25 +7,104 @@
     <title>My Runs</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
+        body.runs-body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            background: radial-gradient(circle at top, #0f172a 0%, #020617 55%, #000 100%);
+            color: var(--text-primary);
+        }
+        .runs-shell {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2.5rem 1.75rem 4rem;
+        }
+        .runs-hero {
+            display: flex;
+            justify-content: space-between;
+            gap: 2rem;
+            flex-wrap: wrap;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 28px;
+            padding: 2rem 2.25rem;
+            box-shadow: 0 30px 80px rgba(2, 6, 23, 0.75);
+            margin-bottom: 1.75rem;
+        }
+        .runs-hero-copy h1 {
+            font-size: 2.25rem;
+            margin: 0.35rem 0 0.35rem;
+            letter-spacing: -0.02em;
+            background: linear-gradient(120deg, #38bdf8, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .runs-kicker {
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.3em;
+            color: rgba(148, 163, 184, 0.9);
+            margin: 0;
+        }
+        .runs-hero-copy p {
+            margin: 0;
+            color: rgba(226, 232, 240, 0.8);
+            max-width: 42ch;
+            line-height: 1.5;
+        }
+        .runs-hero-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+            align-items: flex-end;
+        }
+        .runs-hero-buttons {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .cta-upload {
+            background: linear-gradient(135deg, #6366f1, #22c1c3);
+            color: #fff;
+            box-shadow: 0 22px 45px rgba(79, 70, 229, 0.55);
+        }
+        .cta-upload:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+            box-shadow: 0 28px 60px rgba(79, 70, 229, 0.75);
+        }
+        .filter-bar {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 18px;
+            padding: 1rem 1.25rem;
+            margin-top: 1.5rem;
+        }
         .filter-bar { display: flex; gap: 0.75rem; align-items: center; margin: 1rem 0; flex-wrap: wrap; }
         .filter-bar input, .filter-bar select { padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--card-bg); color: var(--text-color); }
-        .badge.status { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
-        .badge.ready { background: #1b5e20; color: #e8f5e9; }
-        .badge.processing { background: #f57f17; color: #fffde7; }
-        .badge.not-embedded { background: #424242; color: #f5f5f5; }
+        .badge.status { padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; }
+        .badge.ready { background: rgba(34, 197, 94, 0.18); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.5); }
+        .badge.processing { background: rgba(251, 191, 36, 0.18); color: #fcd34d; border: 1px solid rgba(251, 191, 36, 0.45); }
+        .badge.waiting { background: rgba(148, 163, 184, 0.2); color: #cbd5f5; border: 1px solid rgba(148, 163, 184, 0.45); }
         .hint { margin-top: 0.5rem; color: var(--text-muted); font-size: 0.9rem; }
-        .actions-row { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 1rem; }
+        .actions-row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; }
+        .actions-row .dropdown { margin-left: auto; }
         .primary-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-        .dropdown-wrapper { position: relative; }
-        .more-button { padding: 0.6rem 0.85rem; min-width: 90px; }
-        .actions-dropdown { position: absolute; right: 0; top: calc(100% + 0.35rem); background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: var(--shadow); padding: 0.3rem; min-width: 190px; display: none; z-index: 5; }
-        .actions-dropdown.open { display: block; }
-        .actions-dropdown a, .actions-dropdown button { width: 100%; text-align: left; background: transparent; border: none; color: var(--text-primary); padding: 0.65rem 0.85rem; border-radius: 8px; font-size: 0.95rem; cursor: pointer; }
-        .actions-dropdown a:hover, .actions-dropdown button:hover { background: rgba(255, 255, 255, 0.06); }
-        .actions-dropdown .danger { color: var(--danger-color); }
+        .more-button { min-width: 56px; font-size: 1.25rem; padding: 0.6rem 1rem; }
+        .dropdown-content button.danger-option { color: var(--danger-color); }
+        .dropdown-content button.danger-option:hover { color: white; background: rgba(239, 68, 68, 0.2); }
         .btn-ghost { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); }
         .btn-ghost:hover { background: rgba(255, 255, 255, 0.1); }
-        .badge-credits { cursor: pointer; }
+        .badge-credits {
+            cursor: pointer;
+            font-size: 0.8rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: rgba(148, 163, 184, 0.9);
+            border-color: rgba(148, 163, 184, 0.4);
+            align-self: flex-end;
+        }
         .modal-backdrop {
             position: fixed;
             inset: 0;
@@ -48,18 +128,162 @@
         .modal-card h3 { margin-top: 0; margin-bottom: 0.5rem; }
         .modal-card p { margin: 0.35rem 0; color: var(--text-muted); }
         .modal-actions { margin-top: 1rem; text-align: right; }
+        .summary-content {
+            margin-top: 0.75rem;
+            white-space: pre-wrap;
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+        .upload-success {
+            display: none;
+            margin: 1.5rem 0;
+            border-radius: 16px;
+            padding: 1rem 1.25rem;
+            background: rgba(22, 101, 52, 0.24);
+            border: 1px solid rgba(74, 222, 128, 0.55);
+            box-shadow: var(--shadow);
+            color: var(--text-primary);
+        }
+        .upload-success h2 {
+            margin: 0 0 0.35rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            font-size: 0.95rem;
+        }
+        .upload-success p {
+            margin: 0;
+            color: var(--text-muted);
+        }
+        .run-summary {
+            margin-top: 1rem;
+            border-radius: 18px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            background: rgba(2, 6, 23, 0.7);
+            padding: 1rem 1.25rem 1.1rem;
+            box-shadow: 0 15px 35px rgba(2, 6, 23, 0.55);
+        }
+        .run-summary[hidden] { display: none; }
+        .run-summary__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 0.75rem;
+            margin-bottom: 0.65rem;
+        }
+        .run-summary__title {
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 0.78rem;
+            color: rgba(226, 232, 240, 0.8);
+        }
+        .run-summary__meta {
+            font-size: 0.78rem;
+            color: rgba(148, 163, 184, 0.85);
+        }
+        .run-summary__body {
+            font-size: 0.95rem;
+            line-height: 1.55;
+            color: var(--text-primary);
+            max-height: 260px;
+            overflow-y: auto;
+            white-space: pre-line;
+        }
+        .run-summary__body::-webkit-scrollbar {
+            width: 6px;
+        }
+        .run-summary__body::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.35);
+            border-radius: 6px;
+        }
+        .run-summary__actions {
+            margin-top: 0.75rem;
+            font-size: 0.85rem;
+        }
+        .run-summary__link {
+            color: rgba(125, 211, 252, 0.95);
+            text-decoration: none;
+        }
+        .run-summary__link:hover {
+            text-decoration: underline;
+        }
+        .run-summary.has-error {
+            border-color: rgba(248, 113, 113, 0.5);
+        }
+        .card.run-card {
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 24px;
+            padding: 1.5rem 1.6rem;
+            transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+            box-shadow: 0 20px 50px rgba(2, 6, 23, 0.65);
+        }
+        .card.run-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(129, 140, 248, 0.6);
+            box-shadow: 0 30px 60px rgba(2, 6, 23, 0.8);
+        }
+        .run-card-new {
+            position: relative;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+            box-shadow: 0 12px 32px rgba(34, 197, 94, 0.2);
+            animation: new-run-pulse 1.2s ease-out 1;
+        }
+        @keyframes new-run-pulse {
+            0% { box-shadow: 0 0 0 rgba(34, 197, 94, 0.0); }
+            50% { box-shadow: 0 18px 38px rgba(34, 197, 94, 0.35); }
+            100% { box-shadow: 0 12px 32px rgba(34, 197, 94, 0.2); }
+        }
+        .runs-skeleton {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0 0;
+            animation: fade-in 0.3s ease-out;
+        }
+        .runs-skeleton-card {
+            border-radius: 16px;
+            padding: 1.25rem;
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            position: relative;
+            overflow: hidden;
+        }
+        .runs-skeleton-line {
+            height: 12px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(148, 163, 184, 0.15), rgba(148, 163, 184, 0.4), rgba(148, 163, 184, 0.15));
+            background-size: 200% 100%;
+            animation: shimmer 1.3s infinite;
+        }
+        .runs-skeleton-line + .runs-skeleton-line { margin-top: 0.75rem; }
+        @keyframes shimmer {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header flex-between">
-            <h1>My Runs</h1>
-            <div class="flex" style="gap: 1rem; align-items: center;">
-                <span id="credits-display" class="badge badge-credits" role="button" tabindex="0">Credits: 0</span>
-                <a href="/static/upload.html" class="btn btn-primary">Upload New Data</a>
-                <a href="/static/compare.html" class="btn btn-secondary">Compare Runs</a>
+<body class="runs-body">
+    <main class="runs-shell">
+        <section class="runs-hero">
+            <div class="runs-hero-copy">
+                <p class="runs-kicker">Active OmicsToken projects</p>
+                <h1>My Runs</h1>
+                <p>Track ingestion, embeddings, and summaries in real time. Fresh uploads rise to the top with live status and progress.</p>
             </div>
-        </div>
+            <div class="runs-hero-actions">
+                <span id="credits-display" class="badge badge-credits" role="button" tabindex="0">Credits: 0</span>
+                <div class="runs-hero-buttons">
+                    <a href="/static/upload.html" class="btn cta-upload">Upload New Data</a>
+                    <a href="/static/compare.html" class="btn btn-secondary">Compare Runs</a>
+                </div>
+            </div>
+        </section>
+
+        <div id="uploadBanner" class="upload-success"></div>
 
         <div class="filter-bar">
             <input type="text" id="run-search" placeholder="Search by run ID, filename, or instrument">
@@ -70,20 +294,77 @@
             </select>
         </div>
 
-        <div id="runsList" class="grid" style="--grid-cols: 1; gap: 1rem;">
-            <!-- Run cards will be inserted here -->
+        <div id="runsSkeleton" class="runs-skeleton" aria-hidden="true">
+            <div class="runs-skeleton-card">
+                <div class="runs-skeleton-line" style="width:60%;height:16px;"></div>
+                <div class="runs-skeleton-line" style="width:40%;"></div>
+                <div class="runs-skeleton-line" style="width:80%;height:10px;"></div>
+                <div class="runs-skeleton-line" style="width:70%;height:10px;"></div>
+            </div>
+            <div class="runs-skeleton-card">
+                <div class="runs-skeleton-line" style="width:55%;height:16px;"></div>
+                <div class="runs-skeleton-line" style="width:35%;"></div>
+                <div class="runs-skeleton-line" style="width:75%;height:10px;"></div>
+                <div class="runs-skeleton-line" style="width:65%;height:10px;"></div>
+            </div>
+            <div class="runs-skeleton-card">
+                <div class="runs-skeleton-line" style="width:58%;height:16px;"></div>
+                <div class="runs-skeleton-line" style="width:45%;"></div>
+                <div class="runs-skeleton-line" style="width:82%;height:10px;"></div>
+                <div class="runs-skeleton-line" style="width:68%;height:10px;"></div>
+            </div>
         </div>
-        <p id="loading" class="text-center text-muted" style="padding: 2rem;">Loading runs...</p>
-    </div>
 
-    <script>
-        const searchInput = document.getElementById('run-search');
-        const statusFilter = document.getElementById('status-filter');
-        const creditsDisplay = document.getElementById('credits-display');
-        const creditsModalBackdrop = document.getElementById('credits-modal-backdrop');
-        const creditsModalBalance = document.getElementById('credits-modal-balance');
-        const creditsModalClose = document.getElementById('credits-modal-close');
+    <div id="runsList" class="grid" style="--grid-cols: 1; gap: 1.25rem;">
+        <!-- Run cards will be inserted here -->
+    </div>
+    <p id="loading" class="text-center text-muted" style="padding: 2rem;">Loading runs...</p>
+    </main>
+
+<div id="credits-modal-backdrop" class="modal-backdrop" aria-hidden="true">
+    <div id="credits-modal" class="modal-card" role="dialog" aria-modal="true" aria-labelledby="credits-modal-title">
+        <h3 id="credits-modal-title">Usage & Credits</h3>
+        <p id="credits-modal-balance" class="text-muted">You currently have -- credits.</p>
+        <p>Uploads and AI-powered features (summaries, explanations, advanced search) consume credits.</p>
+        <p>When your balance is low, some features may be limited.</p>
+        <p style="font-style: italic;">Coming soon: upgrade plans for higher-throughput labs and teams.</p>
+        <div class="modal-actions">
+            <button id="credits-modal-close" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
+
+<footer style="text-align:center; padding: 1.5rem 0; border-top: 1px solid #ddd; margin-top: 2rem;">
+  <a href="/static/terms.html" target="_blank">Terms</a>
+  &nbsp;·&nbsp;
+  <a href="/static/privacy.html" target="_blank">Privacy</a>
+</footer>
+
+<script>
+    const searchInput = document.getElementById('run-search');
+    const statusFilter = document.getElementById('status-filter');
+    const creditsDisplay = document.getElementById('credits-display');
+    const creditsModalBackdrop = document.getElementById('credits-modal-backdrop');
+    const creditsModalBalance = document.getElementById('credits-modal-balance');
+    const creditsModalClose = document.getElementById('credits-modal-close');
+        const urlParams = new URLSearchParams(window.location.search);
+        const uploadedRunIds = (urlParams.get('uploaded_runs') || '')
+            .split(',')
+            .map(id => id.trim())
+            .filter(Boolean);
+        const uploadedFileNames = (urlParams.get('uploaded_files') || '')
+            .split(',')
+            .map(name => name.trim())
+            .filter(Boolean);
         let latestUserCredits = 0;
+        let runsPollingInterval = null;
+
+        function hideSkeleton() {
+            const skeleton = document.getElementById('runsSkeleton');
+            if (skeleton) {
+                skeleton.remove();
+            }
+        }
 
         window.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('token');
@@ -92,7 +373,24 @@
 
             if (!token) {
                 loadingEl.innerHTML = 'You are not logged in. <a href="/static/login.html">Please log in</a>.';
+                hideSkeleton();
                 return;
+            }
+
+            if (uploadedFileNames.length) {
+                const banner = document.getElementById('uploadBanner');
+                if (banner) {
+                    const fileList = uploadedFileNames.join(', ');
+                    banner.innerHTML = `
+                        <h2>Upload successful</h2>
+                        <p>Uploaded: <strong>${fileList}</strong>. Embeddings are running in the background — you can start exploring these runs now.</p>
+                    `;
+                    banner.style.display = 'block';
+                    banner.scrollIntoView({ behavior: 'smooth' });
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                }
             }
 
             try {
@@ -101,9 +399,11 @@
 
                 if (response.status === 401) {
                     loadingEl.innerHTML = 'Your session has expired. <a href="/static/login.html">Please log in again</a>.';
+                    hideSkeleton();
                     return;
                 }
                 if (!response.ok) {
+                    hideSkeleton();
                     throw new Error(`Failed to load runs (status: ${response.status})`);
                 }
 
@@ -112,17 +412,24 @@
                 const userCredits = data.user_credits;
                 latestUserCredits = userCredits || 0;
 
+                runs.sort((a, b) => runCompare(a, b));
+
                 document.getElementById('credits-display').textContent = 'Credits: ' + userCredits;
 
                 if (runs.length === 0) {
                     loadingEl.textContent = 'No runs found. Try uploading some data!';
+                    hideSkeleton();
                 } else {
                     loadingEl.remove();
+                    hideSkeleton();
                     runs.forEach(run => {
                         const status = computeStatus(run);
+                        const nFeatures = getStatValue(run, 'n_features');
+                        const nEmbeddings = getStatValue(run, 'n_embeddings');
+                        const isNewRun = uploadedRunIds.includes(run.run_id || '');
                         const card = document.createElement('div');
                         card.id = `run-card-${run.run_id}`; // Add an ID for easy removal
-                        card.className = 'card run-card';
+                        card.className = `card run-card${isNewRun ? ' run-card-new' : ''}`;
                         card.dataset.runId = run.run_id || '';
                         card.dataset.filename = run.original_filename || '';
                         card.dataset.instrument = run.instrument || '';
@@ -135,61 +442,136 @@
                                     ${run.instrument ? `<p class="text-sm text-muted">Instrument: ${run.instrument}</p>` : ''}
                                 </div>
                                 <div class="flex" style="gap: 0.5rem; align-items: center;">
-                                    <span class="badge status ${status.className}">${status.label}</span>
+                                    <span class="badge status ${status.className}">${status.badgeLabel || status.label.toUpperCase()}</span>
                                 </div>
                             </div>
                             <div class="flex text-sm text-muted" style="gap: 1.5rem; margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                                <span><strong>${run.n_features}</strong> features</span>
-                                <span><strong>${run.n_embeddings}</strong> embeddings</span>
+                                <span><strong>${nFeatures}</strong> features</span>
+                                <span><strong>${nEmbeddings}</strong> embeddings</span>
                                 <span>Instrument: <strong>${run.instrument || 'N/A'}</strong></span>
                             </div>
                             ${renderHint(run)}
                             <div class="actions-row" role="group" aria-label="Run actions">
-                                <div class="primary-actions" aria-label="Primary actions">
-                                    <a href="/static/simple_dashboard.html?run_id=${run.run_id}" class="btn btn-secondary">Dashboard</a>
-                                    <a href="/static/summary.html?run_id=${run.run_id}" class="btn btn-secondary">Summary</a>
-                                    <a href="/static/search.html?run_id=${run.run_id}" class="btn btn-secondary">Search</a>
+                                <div class="primary-actions">
+                                    <a href="/static/dashboard.html?run_id=${run.run_id}" class="btn btn-primary">Dashboard</a>
+                                    <button type="button" onclick="generateSummary('${run.run_id}', this)" class="btn btn-secondary">Summary</button>
+                                    <a href="/static/search.html?run_id=${run.run_id}" class="btn btn-secondary">Similarities</a>
                                 </div>
-                                <div class="dropdown-wrapper">
-                                    <button class="btn btn-secondary btn-ghost more-button" aria-haspopup="true" aria-expanded="false" aria-controls="actions-menu-${run.run_id}" title="More actions">
-                                        More...
-                                    </button>
-                                    <div class="actions-dropdown" id="actions-menu-${run.run_id}" role="menu">
-                                        <a href="/static/fingerprint.html?run_id=${run.run_id}" class="dropdown-item" role="menuitem" data-menu-item>Fingerprint</a>
-                                        <button class="dropdown-item btn-warning" role="menuitem" data-menu-item onclick="reEmbedRun('${run.run_id}')">Re-embed</button>
-                                        <button class="dropdown-item danger" role="menuitem" data-menu-item onclick="deleteRun('${run.run_id}')">Delete</button>
+                                <div class="dropdown">
+                                    <button type="button" class="btn btn-secondary more-button" data-action="more" data-run-id="${run.run_id}" title="More options">&#8942;</button>
+                                    <div id="dropdown-${run.run_id}" class="dropdown-content">
+                                        <button onclick="reEmbedRun('${run.run_id}')">Re-embed Run</button>
+                                        <button class="danger-option" onclick="deleteRun('${run.run_id}')">Delete Run</button>
                                     </div>
+                                </div>
+                            </div>
+                            <div class="run-summary" id="summary-panel-${run.run_id}" hidden>
+                                <div class="run-summary__header">
+                                    <span class="run-summary__title">AI SUMMARY</span>
+                                    <span class="run-summary__meta" id="summary-meta-${run.run_id}">Awaiting generation</span>
+                                </div>
+                                <div class="run-summary__body" id="summary-body-${run.run_id}">Run insights will appear here after generation.</div>
+                                <div class="run-summary__actions">
+                                    <span style="color: rgba(148,163,184,0.95);">Powered by Gemini · inline preview</span>
                                 </div>
                             </div>
                         `;
                         runsList.appendChild(card);
-                        attachDropdownHandlers(card);
                     });
                     applyFilters();
+                    if (runs.length > 0) {
+                        startRunsPolling(token);
+                    }
                 }
             } catch (e) {
                 loadingEl.innerHTML = `<span style="color: red;">Error: ${e.message}</span>`;
+                hideSkeleton();
             }
         });
 
+        function getStatValue(run, field, fallback = 0) {
+            const stats = run.stats || {};
+            if (typeof stats[field] === 'number') {
+                return stats[field];
+            }
+            if (typeof run[field] === 'number') {
+                return run[field];
+            }
+            return fallback;
+        }
+
+        function runCompare(a, b) {
+            const idA = a.run_id || a.id || '';
+            const idB = b.run_id || b.id || '';
+            const idxA = uploadedRunIds.indexOf(idA);
+            const idxB = uploadedRunIds.indexOf(idB);
+            if (idxA !== -1 || idxB !== -1) {
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+            }
+            const timeA = getRunTimestamp(a);
+            const timeB = getRunTimestamp(b);
+            if (timeA !== timeB) return timeB - timeA;
+            return idA.localeCompare(idB);
+        }
+
+        function getRunTimestamp(run) {
+            const raw = run.created_at || run.created || run.createdAt || run.timestamp;
+            if (raw) {
+                const parsed = Date.parse(raw);
+                if (!Number.isNaN(parsed)) {
+                    return parsed;
+                }
+            }
+            const runId = run.run_id || '';
+            const match = runId.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+            if (match) {
+                const [, y, m, d, hh, mm, ss] = match;
+                const iso = `${y}-${m}-${d}T${hh}:${mm}:${ss}Z`;
+                const parsed = Date.parse(iso);
+                if (!Number.isNaN(parsed)) {
+                    return parsed;
+                }
+            }
+            return 0;
+        }
+
+        function computeFriendlyStatus(run) {
+            const nEmbeddings = getStatValue(run, 'n_embeddings');
+            if (run.embedding_pending === true) {
+                return "Waiting for Embedding";
+            }
+            if (run.indexing_pending === true || run.summary_pending === true) {
+                return "Processing";
+            }
+            if (nEmbeddings > 0) {
+                return "Ready";
+            }
+            return "Processing";
+        }
+
         function computeStatus(run) {
-            if (run.n_features > 0 && run.n_embeddings === run.n_features) {
-                return { key: 'ready', label: 'Ready', className: 'ready' };
+            const friendly = computeFriendlyStatus(run);
+            if (friendly === "Ready") {
+                return { key: 'ready', label: friendly, className: 'ready', badgeLabel: 'READY' };
             }
-            if (run.n_embeddings > 0 && run.n_embeddings < run.n_features) {
-                return { key: 'processing', label: 'Processing', className: 'processing' };
+            if (friendly === "Waiting for Embedding") {
+                return { key: 'waiting_for_embedding', label: friendly, className: 'waiting', badgeLabel: 'WAITING' };
             }
-            return { key: 'not_embedded', label: 'Not embedded', className: 'not-embedded' };
+            return { key: 'processing', label: friendly, className: 'processing', badgeLabel: 'PROCESSING' };
         }
 
         function renderHint(run) {
-            if (run.n_features === 0) {
+            const nFeatures = getStatValue(run, 'n_features');
+            const nEmbeddings = getStatValue(run, 'n_embeddings');
+            if (nFeatures === 0) {
                 return `<div class="hint">No features detected. Check your upload format or input file.</div>`;
             }
-            if (run.n_embeddings > 0 && run.n_embeddings < run.n_features) {
+            if (nEmbeddings > 0 && nEmbeddings < nFeatures) {
                 return `<div class="hint">Some peptides aren't embedded yet. Click Re-embed to complete this run.</div>`;
             }
-            if (run.n_embeddings === 0) {
+            if (nEmbeddings === 0) {
                 return `<div class="hint">No embeddings generated yet. Click Re-embed to start embedding.</div>`;
             }
             return '';
@@ -199,31 +581,31 @@
         statusFilter.addEventListener('change', applyFilters);
 
         function closeAllDropdowns() {
-            document.querySelectorAll('.actions-dropdown.open').forEach(menu => {
-                menu.classList.remove('open');
-                const toggle = menu.parentElement.querySelector('.more-button');
-                if (toggle) {
-                    toggle.setAttribute('aria-expanded', 'false');
-                }
+            document.querySelectorAll('.dropdown-content.show').forEach(menu => {
+                menu.classList.remove('show');
             });
         }
 
-        function toggleDropdown(button) {
-            const menu = button.nextElementSibling;
-            const isOpen = menu.classList.contains('open');
+        function toggleDropdown(runId) {
+            const dropdown = document.getElementById(`dropdown-${runId}`);
+            if (!dropdown) return;
+            const isOpen = dropdown.classList.contains('show');
             closeAllDropdowns();
             if (!isOpen) {
-                menu.classList.add('open');
-                button.setAttribute('aria-expanded', 'true');
-                const firstItem = menu.querySelector('[data-menu-item]');
-                if (firstItem) {
-                    firstItem.focus();
-                }
+                dropdown.classList.add('show');
             }
         }
 
         document.addEventListener('click', (event) => {
-            if (!event.target.closest('.dropdown-wrapper')) {
+            const moreButton = event.target.closest('[data-action="more"]');
+            if (moreButton) {
+                event.preventDefault();
+                event.stopPropagation();
+                const runId = moreButton.getAttribute('data-run-id');
+                toggleDropdown(runId);
+                return;
+            }
+            if (!event.target.closest('.dropdown')) {
                 closeAllDropdowns();
             }
         });
@@ -233,34 +615,6 @@
                 closeAllDropdowns();
             }
         });
-
-        function attachDropdownHandlers(card) {
-            const moreButton = card.querySelector('.more-button');
-            const menuItems = card.querySelectorAll('.actions-dropdown [data-menu-item]');
-            if (moreButton) {
-                moreButton.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    toggleDropdown(moreButton);
-                });
-                moreButton.addEventListener('keydown', (event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        toggleDropdown(moreButton);
-                    }
-                    if (event.key === 'Escape') {
-                        closeAllDropdowns();
-                    }
-                });
-            }
-            menuItems.forEach(item => {
-                item.addEventListener('click', () => closeAllDropdowns());
-                item.addEventListener('keydown', (event) => {
-                    if (event.key === 'Escape') {
-                        closeAllDropdowns();
-                    }
-                });
-            });
-        }
 
         function applyFilters() {
             const term = (searchInput.value || '').toLowerCase();
@@ -276,7 +630,7 @@
                 const matchesStatus =
                     statusValue === 'all' ? true :
                     statusValue === 'ready' ? status === 'ready' :
-                    (status === 'processing' || status === 'not_embedded');
+                    (status === 'processing' || status === 'not_embedded' || status === 'waiting_for_embedding');
 
                 card.style.display = matchesTerm && matchesStatus ? '' : 'none';
             });
@@ -309,8 +663,10 @@
             }
         });
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && creditsModalBackdrop.classList.contains('active')) {
-                closeCreditsModal();
+            if (event.key === 'Escape') {
+                if (creditsModalBackdrop.classList.contains('active')) {
+                    closeCreditsModal();
+                }
             }
         });
 
@@ -348,6 +704,87 @@
             }
         }
 
+        async function generateSummary(runId, buttonEl) {
+            closeAllDropdowns();
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/static/login.html';
+                return;
+            }
+            const panel = document.getElementById(`summary-panel-${runId}`);
+            const body = document.getElementById(`summary-body-${runId}`);
+            const meta = document.getElementById(`summary-meta-${runId}`);
+            if (!panel || !body) {
+                return;
+            }
+            const button = buttonEl || null;
+            const isOpen = panel.classList.contains('open');
+            if (isOpen) {
+                panel.classList.remove('open');
+                panel.setAttribute('hidden', 'true');
+                panel.classList.remove('has-error');
+                if (button) {
+                    button.textContent = 'Summary';
+                }
+                return;
+            }
+
+            panel.classList.add('open');
+            panel.removeAttribute('hidden');
+
+            if (panel.dataset.loaded === 'true') {
+                if (button) {
+                    button.textContent = 'Hide Summary';
+                }
+                return;
+            }
+
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Loading...';
+            }
+            body.textContent = 'Generating summary...';
+            panel.classList.remove('has-error');
+            if (meta) {
+                meta.textContent = 'Updating...';
+            }
+
+            try {
+                const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/summary`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!response.ok) {
+                    let message = `Failed to fetch summary (status ${response.status})`;
+                    try {
+                        const errorData = await response.json();
+                        if (errorData && errorData.detail) {
+                            message = errorData.detail;
+                        }
+                    } catch (_) {}
+                    throw new Error(message);
+                }
+                const data = await response.json();
+                const summaryText = (data.summary || 'Summary is not available yet.').trim();
+                body.textContent = summaryText;
+                panel.dataset.loaded = 'true';
+                if (meta) {
+                    const stamp = new Date();
+                    meta.textContent = `Updated ${stamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                }
+            } catch (e) {
+                body.textContent = e.message || 'Unable to load summary.';
+                panel.classList.add('has-error');
+                if (meta) {
+                    meta.textContent = 'Unable to load summary';
+                }
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = 'Hide Summary';
+                }
+            }
+        }
+
         async function deleteRun(runId) {
             closeAllDropdowns();
             if (!confirm(`Are you sure you want to delete run "${runId}"?\nThis action cannot be undone.`)) {
@@ -372,18 +809,50 @@
                 alert(`An error occurred: ${e.message}`);
             }
         }
+
+        function startRunsPolling(token) {
+            if (runsPollingInterval) {
+                return;
+            }
+            runsPollingInterval = setInterval(async () => {
+                const topCard = document.querySelector('.run-card');
+                if (!topCard) {
+                    return;
+                }
+                const targetRunId = topCard.dataset.runId;
+                const previousStatus = topCard.dataset.status;
+                if (!targetRunId) {
+                    return;
+                }
+                try {
+                    const response = await fetch('/runs', {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    if (!response.ok) {
+                        return;
+                    }
+                    const data = await response.json();
+                    const latestRuns = data.runs || [];
+                    const currentRun = latestRuns.find(run => (run.run_id || '') === targetRunId);
+                    if (!currentRun) {
+                        return;
+                    }
+                    const nextStatus = computeStatus(currentRun);
+                    if (previousStatus !== nextStatus.key && nextStatus.key === 'ready') {
+                        window.location.reload();
+                    }
+                } catch (err) {
+                    console.warn('Run status polling failed', err);
+                }
+            }, 3000);
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (runsPollingInterval) {
+                clearInterval(runsPollingInterval);
+                runsPollingInterval = null;
+            }
+        });
     </script>
-    <div id="credits-modal-backdrop" class="modal-backdrop" aria-hidden="true">
-        <div id="credits-modal" class="modal-card" role="dialog" aria-modal="true" aria-labelledby="credits-modal-title">
-            <h3 id="credits-modal-title">Usage & Credits</h3>
-            <p id="credits-modal-balance" class="text-muted">You currently have -- credits.</p>
-            <p>Uploads and AI-powered features (summaries, explanations, advanced search) consume credits.</p>
-            <p>When your balance is low, some features may be limited.</p>
-            <p style="font-style: italic;">Coming soon: upgrade plans for higher-throughput labs and teams.</p>
-            <div class="modal-actions">
-                <button id="credits-modal-close" class="btn btn-secondary">Close</button>
-            </div>
-        </div>
-    </div>
 </body>
 </html>

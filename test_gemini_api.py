@@ -1,35 +1,35 @@
 import google.generativeai as genai
 import os
+import pytest
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
+
 def test_api():
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        print("❌ GOOGLE_API_KEY not found in environment variables!")
-        print("Please ensure your .env file contains: GOOGLE_API_KEY=your_key_here")
-        return False
-    
-    print(f"✅ API Key found (starts with: {api_key[:10]}...)")
-    
+        pytest.skip("GOOGLE_API_KEY not configured; skipping Gemini API test.")
+
+    print(f"�o. API Key found (starts with: {api_key[:10]}...)")
+
     try:
         genai.configure(api_key=api_key)
-        
+
         # Test with the updated model
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
-        
+        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+
         response = model.generate_content("Say 'Hello, the API is working!' in one sentence.")
-        
-        print(f"✅ Model: models/gemini-1.5-flash")
-        print(f"✅ Response: {response.text}")
-        print("\n🎉 Gemini API is configured correctly!")
-        return True
-        
+
+        print(f"�o. Model: models/gemini-1.5-flash")
+        print(f"�o. Response: {response.text}")
+        print("\n�YZ% Gemini API is configured correctly!")
+        assert True
+
     except Exception as e:
-        print(f"❌ API Error: {str(e)}")
-        return False
+        pytest.fail(f"API Error: {str(e)}")
+
 
 if __name__ == "__main__":
     test_api()

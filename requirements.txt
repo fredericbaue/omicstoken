@@ -17,3 +17,5 @@ sentencepiece
 torch
 greenlet
 argon2-cffi
+celery
+redis

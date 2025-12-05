@@ -3,6 +3,7 @@ You are my coding partner on the OmicsToken – Immuno-Peptidomics MVP.
 At the start of this session, perform the following initialization steps *in order*:
 
 1. Open and fully internalize:
+   - view the full repo at C:\Users\test\metabo-mvp
    - core_context.txt  → the project's purpose, unbreakable pipeline, architecture, and business context.
    - memory_log.txt    → the append-only history of completed tasks and design decisions.
    - tasks.txt         → the prioritized engineering task list.

@@ -1,0 +1,14 @@
+﻿Patient_ID,Tumor_Size_cm,Cellularity,Diagnosis,Mitotic_Count,Stage
+TUM001,1.8,0.45,Benign,3,Stage I
+TUM002,2.6,0.52,Malignant,8,Stage II
+TUM003,4.1,0.61,Malignant,15,Stage III
+TUM004,3.3,0.58,Malignant,11,Stage II
+TUM005,1.2,0.35,Benign,1,Stage 0
+TUM006,5.4,0.67,Malignant,18,Stage III
+TUM007,6.2,0.71,Malignant,24,Stage IV
+TUM008,2.1,0.48,Benign,4,Stage I
+TUM009,3.9,0.63,Malignant,13,Stage III
+TUM010,4.8,0.65,Malignant,17,Stage III
+TUM011,2.9,0.5,Benign,5,Stage II
+TUM012,5.9,0.7,Malignant,20,Stage IV
+TUM013,1.5,0.4,Benign,2,Stage 0

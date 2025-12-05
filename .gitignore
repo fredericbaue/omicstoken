@@ -19,3 +19,9 @@ venv/
 data/
 exports/
 *.sqlite
+
+# Local runtime logs (Celery / Uvicorn)
+celery*.log
+celery*.err
+uvicorn*.log
+uvicorn*.err

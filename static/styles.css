@@ -1,0 +1,134 @@
+﻿:root {
+    --shell-bg: rgba(15, 23, 42, 0.92);
+    --shell-border: rgba(148, 163, 184, 0.35);
+    --text-body: #e5e7eb;
+    --muted: rgba(226, 232, 240, 0.7);
+    --hero-shadow: 0 24px 60px rgba(15, 23, 42, 0.85);
+    --accent-start: #6366f1;
+    --accent-end: #22c1c3;
+}
+
+body.auth-body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at top, #0f172a 0%, #020617 55%, #000 100%);
+    color: var(--text-body);
+    font-family: "Inter", "SF Pro Text", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.5rem 3rem;
+}
+
+.auth-shell {
+    width: 100%;
+    max-width: 420px;
+}
+
+.auth-card {
+    border-radius: 22px;
+    padding: 2rem 2.25rem 2.5rem;
+    background: var(--shell-bg);
+    border: 1px solid var(--shell-border);
+    box-shadow: var(--hero-shadow);
+    backdrop-filter: blur(18px);
+}
+
+.auth-brand {
+    text-align: center;
+    margin-bottom: 1.75rem;
+}
+
+.auth-brand h1 {
+    margin: 0;
+    font-size: 1.9rem;
+    letter-spacing: 0.02em;
+    font-weight: 600;
+}
+
+.auth-brand p {
+    margin: 0.35rem 0 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+
+.auth-error {
+    display: none;
+    color: #fda4af;
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px solid rgba(248, 113, 113, 0.5);
+    padding: 0.85rem 1rem;
+    border-radius: 14px;
+    margin-bottom: 1.25rem;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.auth-form label {
+    display: block;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(226, 232, 240, 0.85);
+    margin-bottom: 0.4rem;
+}
+
+.auth-form input[type="email"],
+.auth-form input[type="password"] {
+    width: 100%;
+    border-radius: 12px;
+    background: rgba(2, 6, 23, 0.7);
+    border: 1px solid rgba(51, 65, 85, 0.9);
+    padding: 0.75rem 0.9rem;
+    color: var(--text-body);
+    font-size: 0.95rem;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.auth-form input[type="email"]:focus,
+.auth-form input[type="password"]:focus {
+    outline: none;
+    border-color: rgba(129, 140, 248, 0.75);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+.auth-btn {
+    border-radius: 999px;
+    padding: 0.85rem 1.4rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+    border: none;
+    box-shadow: 0 22px 45px rgba(79, 70, 229, 0.55);
+    width: 100%;
+    justify-content: center;
+    transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.auth-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+    box-shadow: 0 28px 60px rgba(79, 70, 229, 0.75);
+}
+
+.auth-footer {
+    margin-top: 1.5rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.auth-footer a {
+    color: rgba(129, 140, 248, 0.95);
+    text-decoration: none;
+}
+
+.auth-footer a:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+    .auth-card {
+        padding: 1.75rem 1.5rem;
+    }
+}

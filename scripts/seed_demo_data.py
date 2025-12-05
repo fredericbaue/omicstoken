@@ -96,7 +96,8 @@ def seed_runs_for_user(user_id: str):
                     },
                 )
                 db.insert_feature(con, run_id, feature_model)
-            con.commit()
+            if hasattr(con, "commit"):
+                con.commit()
             app._embed_run(run_id, expected_user_id=user_id)
     finally:
         con.close()

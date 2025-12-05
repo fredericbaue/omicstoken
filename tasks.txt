@@ -1,52 +1,55 @@
-# OmicsToken – Unified Engineering + UX + CTO Priority Task List
+﻿# OmicsToken â€“ Unified Engineering + UX + CTO Priority Task List
 # Version: 2025-12-02
 # This file consolidates MVP-Critical, Infrastructure, UX, and Productization tasks
 # into a single prioritized roadmap for Codex in VS Code.
 
 ======================================================================
-## 🔥 0. Absolute Rule (Non-Negotiable)
+## ðŸ”¥ 0. Absolute Rule (Non-Negotiable)
 NEVER break the pipeline:
 
-Upload → Parse → Store Features → Embed → Store Embeddings → Rebuild Index →
-Search → Compare → Summarize → Export.
+Upload â†’ Parse â†’ Store Features â†’ Embed â†’ Store Embeddings â†’ Rebuild Index â†’
+Search â†’ Compare â†’ Summarize â†’ Export.
 
 All code changes must preserve this end-to-end flow.
 ======================================================================
 
 
 ======================================================================
-## 🚨 P0 — CRITICAL FOUNDATION (Required for investors, labs, and scaling)
+## ðŸš¨ P0 â€” CRITICAL FOUNDATION (Required for investors, labs, and scaling)
 ======================================================================
 
-[ ] P0.1 MIGRATE DATABASE TO POSTGRESQL
+[x] P0.1 MIGRATE DATABASE TO POSTGRESQL
      - Replace SQLite (immuno.sqlite + users.db) with PostgreSQL.
      - Update DB connections, models, migrations, and thread safety.
      - Ensure FAISS rebuild still works with new DB structure.
      [x] Introduce DB_BACKEND config and configurable users DB path (first prep step).
+     - ModelVersion table + model_version_id added to peptide_embeddings; SQLite remains default.
 
-[ ] P0.2 CENTRALIZED LOGGING & TRACING
+[x] P0.2 CENTRALIZED LOGGING & TRACING
      - Implement request/response logging middleware.
      - Add correlation IDs and redact sensitive fields.
      - Support pluggable log sinks (stdout for now; Sentry later).
 
-[ ] P0.3 LEGAL & COMPLIANCE FOUNDATION
+[x] P0.3 LEGAL & COMPLIANCE FOUNDATION
      - Add ToS, Privacy Policy, and Data Processing Policy placeholder files.
      - Ensure UI links can reference these pages.
      - Do NOT implement full compliance backend yet.
+     - Placeholder Terms/Privacy pages added with footer links across user pages.
 
 [ ] P0.4 CLOUD FILE STORAGE (S3/Blob)
      - Store raw uploads in cloud object storage instead of local disk.
      - Integrate signed URLs for secure download.
      - Maintain compatibility with existing parsing pipeline.
 
-[ ] P0.5 ADVANCED BACKGROUND JOB ENGINE
+[x] P0.5 ADVANCED BACKGROUND JOB ENGINE
      - Replace FastAPI threadpool with Celery/Redis Queue.
-     - Embed → Index rebuild → Summaries must be queued jobs.
+     - Embed â†’ Index rebuild â†’ Summaries must be queued jobs.
      - Ensure full reproducibility and crash recovery.
+     - Celery worker now queues embed -> rebuild -> summary; API callers unchanged.
 
 
 ======================================================================
-## 💎 P1 — UX/UI PHASE 2.1 (High-impact demo & scientist polish)
+## ðŸ’Ž P1 â€” UX/UI PHASE 2.1 (High-impact demo & scientist polish)
 # These tasks dramatically improve user experience without changing the backend.
 ======================================================================
 
@@ -54,15 +57,15 @@ All code changes must preserve this end-to-end flow.
 
 [x] UX.C1 REFACTOR RUN LIST ACTIONS (static/runs.html)
      - Consolidate Delete, Fingerprint, Re-embed into a single dropdown.
-     - Keep only “Dashboard”, “Summary”, “Search” as primary actions.
+     - Keep only â€œDashboardâ€, â€œSummaryâ€, â€œSearchâ€ as primary actions.
 
-[ ] UX.C2 SIMPLIFY STATUS LABELS (static/runs.html)
+[x] UX.C2 SIMPLIFY STATUS LABELS (static/runs.html)
      - Replace computeStatus logic with clearer statuses:
        "Ready", "Processing", "Waiting for Embedding".
 
 ### HIGH VALUE UX (Flow & Friction Removal)
 
-[ ] UX.H1 DRAG-AND-DROP UPLOAD (static/upload.html)
+[x] UX.H1 DRAG-AND-DROP UPLOAD (static/upload.html)
      - Replace file input with a branded drag-and-drop upload zone.
      - Add hover/focus visual feedback.
 
@@ -72,8 +75,11 @@ All code changes must preserve this end-to-end flow.
      - Clicking automatically loads search.html with run_id + feature_id selected.
 
 [x] UX.H3 POST-UPLOAD FUNNEL
-     - After upload → show success banner → link directly to Runs List.
+     - After upload â†’ show success banner â†’ link directly to Runs List.
      - Remove friction returning to /runs.html.
+
+[x] 1.6 Pipeline Instrumentation (Time-to-Insight tracking)
+
 
 ### MEDIUM UX (Trust & Polish)
 
@@ -91,7 +97,7 @@ All code changes must preserve this end-to-end flow.
 
 
 ======================================================================
-## 💼 P2 — MONETIZATION & PRODUCTIZATION
+## ðŸ’¼ P2 â€” MONETIZATION & PRODUCTIZATION
 ======================================================================
 
 [ ] P2.1 STRIPE PAYMENT INTEGRATION
@@ -108,21 +114,25 @@ All code changes must preserve this end-to-end flow.
 
 
 ======================================================================
-## 🧠 P3 — ADVANCED SCIENTIFIC FEATURES (Future)
+## ?? P3 ? STRUCTURAL VALIDATION & MULTI-MODAL FUSION (Horizon 2)
+# These tasks build the core scientific moat using external data (AlphaFold).
 ======================================================================
 
-[ ] P3.1 STATISTICAL TESTS (t-tests, ANOVA)
-     - Optional downstream analysis modules.
+[ ] P3.1 ALPHA LINK CONNECTOR (Structural Dispatch)
+     - Build dedicated Python logic (e.g., verification.py) to dispatch jobs to the AlphaFold API or custom folding engine.
+     - Add database model (`ProteinStructure`) to store PDB content, pLDDT, and PAE.
 
-[ ] P3.2 GO / PATHWAY ENRICHMENT
-     - Optional biological interpretation module.
+[ ] P3.2 3D VISUALIZATION INTEGRATION
+     - Integrate NGL Viewer/Mol* in the frontend (e.g., dashboard.html or explain.html) to render PDB structures live.
 
-[ ] P3.3 DIFFERENTIAL PEPTIDE ANALYSIS
-     - Later version of the comparison engine.
+[ ] P3.3 MULTI-MODAL DATA FUSION
+     - Refactor search/ranking logic to combine sequence embeddings (ESM-2) with structural data (pLDDT/PAE) for superior similarity scoring.
 
+[ ] P3.4 COMPOSITE VALIDATION REPORT
+     - Update reports to include a "Structural Confidence Score" derived from the pLDDT mean.
 
 ======================================================================
-## 🌐 P4 — PLATFORM EXPANSION
+## ðŸŒ P4 â€” PLATFORM EXPANSION
 ======================================================================
 
 [ ] P4.1 MIGRATE UI TO REACT/NEXT.JS
@@ -133,7 +143,24 @@ All code changes must preserve this end-to-end flow.
 
 
 ======================================================================
-## 🧭 FINISHED TASKS (DON’T MODIFY)
+
+======================================================================
+## ?? P5 ? GENERATIVE BIOLOGY & DATA ASSET (Horizon 3)
+# These tasks create the Trillion-Dollar value proposition.
+======================================================================
+
+[ ] P5.1 OMICSGEN: DE NOVO PEPTIDE DESIGN MODEL
+     - Integrate or fine-tune a Generative AI (e.g., diffusion model) trained on our proprietary database of validated peptides.
+     - Enable users to generate novel binders for specified targets.
+
+[ ] P5.2 DATA ASSET TOKENIZATION (IP-NFT Layer)
+     - Formalize the pipeline to create a secure, hash-based "Proof of Discovery" record for every dataset.
+     - Design the Smart Contract interface logic for licensing/royalty attribution.
+
+[ ] P5.3 BIODIVERSITY PARTNER INGESTION
+     - Onboard the first non-clinical partner (e.g., a Venom/Plant lab) to seed the DeSci marketplace with novel biological IP.
+
+## ðŸ§­ FINISHED TASKS (DONâ€™T MODIFY)
 ======================================================================
 
 [x] 1.1 Hardened Export Auth
@@ -155,3 +182,6 @@ All code changes must preserve this end-to-end flow.
 [x] 5.1 Multi-Run Export Bundle
 [x] 5.2 Automated Insight Report
 [x] 5.3 API Tokens for Lab Integrations
+[x] UX.C4 Upload handoff polish (multi-file flow, advanced options auto-toggle, contextual redirect/banner on runs page)
+[x] UX.C5 Runs list highlights for newly uploaded files (success banner, sorting, badges)
+

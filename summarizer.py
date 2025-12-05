@@ -1,21 +1,20 @@
-import os
+import logging
 from typing import Dict, Any, List, Optional
 
 import google.generativeai as genai
 
+import config
 import db
 import models
 
+LOGGER = logging.getLogger(__name__)
+
 # --- Gemini API configuration ---
-
-# Prefer GEMINI_API_KEY but fall back to GOOGLE_API_KEY for compatibility.
-_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-
+_API_KEY = config.GEMINI_API_KEY
 if _API_KEY:
     genai.configure(api_key=_API_KEY)
 else:
-    # Keep the existing behavior of warning at import time.
-    print("Warning: GEMINI_API_KEY/GOOGLE_API_KEY not found in environment variables!")
+    LOGGER.debug("Gemini API key missing; summaries will return a friendly error payload.")
 
 
 def _get_gemini_model() -> Optional[genai.GenerativeModel]:
@@ -63,7 +62,7 @@ def generate_summary(run_id: str, con=None) -> Dict[str, Any]:
         }
 
     if con is None:
-        con = db.get_db_connection("data")
+        con = db.get_db_connection(config.DATA_DIR)
 
     # Fetch basic stats / features for the run
     features = db.get_features_for_run(con, run_id)

@@ -2,13 +2,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi.concurrency import run_in_threadpool
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, Response
 from fastapi import Request
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 import os
 import shutil
@@ -16,17 +16,19 @@ import pandas as pd
 import numpy as np
 import asyncio
 import random
+import inspect
 import time
 import uuid
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import logging
 from datetime import datetime
 import io
 import zipfile
 import json
+from pathlib import Path
 
 import embeddings
 from embeddings import peptide_to_vector, EMBEDDING_DIM
@@ -38,8 +40,10 @@ import summarizer
 import export
 import auth
 import config
+from datetime import datetime
+from worker import queue_embed_run
 from auth import current_active_user, current_active_user_or_token, User
-import config
+from pipeline import calculate_properties, run_embedding_pipeline
 
 LOGGER = logging.getLogger(__name__)
 REQUEST_LOGGER = logging.getLogger("request_logger")
@@ -51,6 +55,7 @@ DATA_DIR = config.DATA_DIR
 app = FastAPI(title="Immuno-Peptidomics MVP")
 
 # CORS (Optional, good for dev)
+# --- CSP FIX START ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -58,6 +63,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class CSPFixMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        # Force relaxed CSP for Alpine.js/HTMX
+        response.headers["Content-Security-Policy"] = (
+            "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;"
+        )
+        return response
+
+
+app.add_middleware(CSPFixMiddleware)
+# --- CSP FIX END ---
 
 def _get_user_identifier(request: Request) -> str:
     """Best-effort extraction of a user identifier for logging."""
@@ -80,13 +99,23 @@ async def request_logging_middleware(request: Request, call_next):
         response = await call_next(request)
     except Exception as exc:
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
+        status_code = getattr(exc, "status_code", 500)
+        if status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
+            LOGGER.warning(
+                "Auth failure on %s %s (status=%s, user=%s, correlation_id=%s)",
+                request.method,
+                request.url.path,
+                status_code,
+                _get_user_identifier(request),
+                correlation_id,
+            )
         payload = {
             "event": "request_log",
             "correlation_id": correlation_id,
             "method": request.method,
             "path": request.url.path,
             "query": str(request.url.query),
-            "status": getattr(exc, "status_code", 500),
+            "status": status_code,
             "latency_ms": latency_ms,
             "user": _get_user_identifier(request),
             "error": str(exc),
@@ -131,71 +160,10 @@ app.include_router(
 async def root():
     return RedirectResponse(url="/docs", status_code=307)
 
-def _embed_run(run_id: str, expected_user_id: Optional[str] = None):
-    """Shared embedding worker with ownership enforcement and safe DB handling."""
-    con = db.get_db_connection(DATA_DIR)
-    try:
-        run = db.get_run(con, run_id)
-        if run is None or (expected_user_id is not None and str(run.user_id) != str(expected_user_id)):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Run not found",
-            )
-
-        features = db.get_features_for_run(con, run_id)
-
-        count = 0
-        total_features = len(features)
-        LOGGER.info("Embedding %s peptides for run %s...", total_features, run_id)
-        for i, feat in enumerate(features):
-            if (i + 1) % 100 == 0:
-                LOGGER.info("Processed %s/%s peptides for run %s", i + 1, total_features, run_id)
-            vec = peptide_to_vector(feat.peptide_sequence)
-
-            if vec is not None and vec.shape[0] == EMBEDDING_DIM:
-                props = calculate_properties(feat.peptide_sequence)
-                db.insert_peptide_embedding(
-                    con,
-                    run_id,
-                    run.user_id,
-                    feat.feature_id,
-                    feat.peptide_sequence,
-                    feat.intensity or 0.0,
-                    props["length"],
-                    props["charge"],
-                    props["hydrophobicity"],
-                    vec,
-                )
-                count += 1
-            else:
-                LOGGER.warning(
-                    "Skipping embedding for feature %s in run %s due to invalid sequence/vector.",
-                    feat.feature_id,
-                    run_id,
-                )
-
-        con.commit()
-        try:
-            search.rebuild_faiss_index(None, DATA_DIR)
-        except Exception as e:
-            LOGGER.exception(f"FAISS index rebuild failed after embedding run {run_id}: {e}")
-
-        return {"run_id": run_id, "peptides_embedded": count}
-    except HTTPException:
-        con.rollback()
-        raise
-    except Exception as e:
-        con.rollback()
-        LOGGER.exception("Embedding failed for run %s: %s", run_id, e)
-        raise HTTPException(status_code=500, detail="Embedding failed due to an internal error.")
-    finally:
-        con.close()
-
-
 @app.post("/peptide/embed/{run_id}")
 def embed(run_id: str, user: User = Depends(current_active_user)):
     """Vectorize each peptide in a run and persist the vectors."""
-    return _embed_run(run_id, expected_user_id=str(user.id))
+    return run_embedding_pipeline(run_id, expected_user_id=str(user.id))
 
 @app.get("/upload", include_in_schema=False)
 def upload_page():
@@ -203,7 +171,7 @@ def upload_page():
 
 
 @app.post("/upload", include_in_schema=False)
-async def upload_handler(request: Request, background_tasks: BackgroundTasks,
+async def upload_handler(request: Request,
                          file: UploadFile = File(...),
                          run_id: str = Form(""),
                          instrument: str = Form(""),
@@ -213,6 +181,7 @@ async def upload_handler(request: Request, background_tasks: BackgroundTasks,
     """
     Handles file uploads, detects format, ingests data, and triggers embedding.
     """
+    start_time = datetime.utcnow().isoformat() + "Z"
     # --- Ingest Logic ---
     name = file.filename or "upload.csv"
     
@@ -242,36 +211,100 @@ async def upload_handler(request: Request, background_tasks: BackgroundTasks,
         "run_id": run_id.strip() or None,
         "instrument": instrument.strip() or None,
         "method": method.strip() or None,
-        "original_filename": name
+        "original_filename": name,
+        "upload_started_at": start_time,
     }
     run_id_final = meta_dict.get("run_id") or f"RUN_{pd.Timestamp.utcnow().strftime('%Y%m%d_%H%M%S')}"
 
+    rows_ingested = len(features)
+    LOGGER.info(
+        "Upload ingested %s features for run %s (user %s, file=%s)",
+        rows_ingested,
+        run_id_final,
+        user.id,
+        name,
+    )
+
     # Store in SQLite
     con = db.get_db_connection(DATA_DIR)
-    db.insert_run(con, run_id_final, meta_dict, user_id=str(user.id))
+    try:
+        db.insert_run(con, run_id_final, meta_dict, user_id=str(user.id))
 
-    for feat in features:
-        db.insert_feature(con, run_id_final, feat)
-        
-    con.commit()
-    db.update_user_credits(con, str(user.id), 10) # Increment credits
-    LOGGER.info("User %s mined 10 credits", user.email)
-    con.close()
-    rows_ingested = len(features)
+        for feat in features:
+            db.insert_feature(con, run_id_final, feat)
 
-    # --- Background Tasks ---
-    def _background_work(run_id_to_process: str, owner_id: str):
-        # This function is synchronous and will be run in a threadpool
-        try:
-            LOGGER.info("Background embedding started for run %s", run_id_to_process)
-            embed_result = _embed_run(run_id=run_id_to_process, expected_user_id=owner_id)
-            LOGGER.info("Background embedding finished for run %s; peptides_embedded=%s", run_id_to_process, embed_result['peptides_embedded'])
-            LOGGER.info("Background: Ready for summarization.")
-        except Exception as e:
-            LOGGER.error("Background embedding failed for run %s: %s", run_id_to_process, e)
+        con.commit()
+        db.update_user_credits(con, str(user.id), 10)  # Increment credits
+        LOGGER.info("User %s mined 10 credits after upload %s", user.email, run_id_final)
+    except HTTPException:
+        con.rollback()
+        raise
+    except Exception as e:
+        con.rollback()
+        LOGGER.exception(
+            "Failed to persist upload for run %s (user %s): %s",
+            run_id_final,
+            user.id,
+            e,
+        )
+        raise HTTPException(status_code=500, detail="Failed to persist uploaded data.")
+    finally:
+        con.close()
 
-    # Use run_in_threadpool to avoid blocking the event loop with synchronous code
-    background_tasks.add_task(run_in_threadpool, _background_work, run_id_final, str(user.id))
+    LOGGER.info(
+        "Upload persisted %s features for run %s; preparing to queue embedding",
+        rows_ingested,
+        run_id_final,
+    )
+
+    queued_time = datetime.utcnow().isoformat() + "Z"
+
+    # --- Background Jobs via Celery ---
+    try:
+        LOGGER.info(
+            "Queueing Celery embed_run_task for run %s (user %s, broker=%s)",
+            run_id_final,
+            user.id,
+            config.CELERY_BROKER_URL,
+        )
+        job = queue_embed_run(run_id_final, str(user.id))
+        LOGGER.info(
+            "Dispatched Celery embed_run_task for run %s (user %s, job_id=%s)",
+            run_id_final,
+            user.id,
+            getattr(job, "id", None),
+        )
+    except Exception as e:
+        LOGGER.exception(
+            "Failed to dispatch Celery embed_run_task for run %s (user %s, broker=%s): %s",
+            run_id_final,
+            user.id,
+            config.CELERY_BROKER_URL,
+            e,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to queue embedding job. Please try again later.",
+        )
+
+    meta_con = None
+    try:
+        meta_con = db.get_db_connection(DATA_DIR)
+        db.update_run_meta(
+            meta_con,
+            run_id_final,
+            {
+                "upload_queued_at": queued_time,
+                "embedding_pending": True,
+                "indexing_pending": True,
+                "summary_pending": True,
+            },
+        )
+    except Exception as e:
+        LOGGER.warning("Unable to update upload_queued_at for run %s: %s", run_id_final, e)
+    finally:
+        if meta_con:
+            meta_con.close()
 
     # --- Success Response ---
     first_feature_id = features[0].feature_id if features else None
@@ -354,17 +387,21 @@ Explain in 2 short paragraphs what's interesting about this peptide. Mention any
         # Call Gemini API
         try:
             import google.generativeai as genai
-            GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-            
-            if not GOOGLE_API_KEY:
-                raise HTTPException(500, "GOOGLE_API_KEY not configured")
-            
-            genai.configure(api_key=GOOGLE_API_KEY)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+
+            if not config.HAS_GEMINI_KEY:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Gemini API key not configured. Set GEMINI_API_KEY or GOOGLE_API_KEY to enable explanations.",
+                )
+
+            model = genai.GenerativeModel("gemini-2.5-flash")
             response = model.generate_content(prompt)
             explanation = response.text
-            
+
+        except HTTPException:
+            raise
         except Exception as e:
+            LOGGER.exception("LLM generation failed for run %s feature %s: %s", run_id, feature_id, e)
             raise HTTPException(500, f"LLM generation failed: {str(e)}")
         
         # Return structured response
@@ -381,11 +418,27 @@ Explain in 2 short paragraphs what's interesting about this peptide. Mention any
     finally:
         con.close()
 
-@app.post("/summary/run/{run_id}")
-def get_run_summary(run_id: str, user: User = Depends(current_active_user)):
-    """
-    Generates a text summary of the run using the Summarization Engine.
-    """
+def _extract_summary_text(summary_payload: Any) -> Optional[str]:
+    if summary_payload is None:
+        return None
+    if isinstance(summary_payload, str):
+        return summary_payload.strip()
+    if isinstance(summary_payload, dict):
+        for key in ("summary_text", "summary"):
+            value = summary_payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        error_text = summary_payload.get("error")
+        if isinstance(error_text, str) and error_text.strip():
+            return f"Summary unavailable: {error_text.strip()}"
+        try:
+            return json.dumps(summary_payload, indent=2)
+        except Exception:
+            return str(summary_payload)
+    return str(summary_payload)
+
+
+def _load_or_create_summary_payload(run_id: str, user: User):
     con = db.get_db_connection(DATA_DIR)
     try:
         run = db.get_run(con, run_id)
@@ -395,8 +448,23 @@ def get_run_summary(run_id: str, user: User = Depends(current_active_user)):
                 detail="Run not found",
             )
 
-        summary = summarizer.generate_summary(run_id, con)
-        return summary
+        run_meta = run.meta or {}
+        cached_summary = run_meta.get("cached_summary")
+        if isinstance(cached_summary, dict):
+            return cached_summary
+
+        summary_result = summarizer.generate_summary(run_id, con)
+        update_payload: Dict[str, Any] = {
+            "cached_summary": summary_result,
+            "summary_pending": False,
+        }
+        if isinstance(summary_result, dict) and summary_result.get("error"):
+            update_payload["last_summary_error"] = summary_result.get("error")
+        else:
+            update_payload["last_summary_error"] = None
+            update_payload["summary_generated_at"] = datetime.utcnow().isoformat() + "Z"
+        db.update_run_meta(con, run_id, update_payload)
+        return summary_result
     except HTTPException:
         raise
     except Exception as e:
@@ -406,6 +474,30 @@ def get_run_summary(run_id: str, user: User = Depends(current_active_user)):
         )
     finally:
         con.close()
+
+
+@app.get("/api/runs/{run_id}/summary")
+def get_run_summary(run_id: str, user: User = Depends(current_active_user)):
+    """
+    Retrieve (and cache) the latest Gemini summary for a run.
+    """
+    summary_payload = _load_or_create_summary_payload(run_id, user)
+    summary_text = _extract_summary_text(summary_payload)
+    if not summary_text:
+        raise HTTPException(
+            status_code=500,
+            detail="Summary result did not include any text.",
+        )
+    return {"summary": summary_text}
+
+
+@app.post("/summary/run/{run_id}")
+def legacy_get_run_summary(run_id: str, user: User = Depends(current_active_user)):
+    """
+    Legacy summary endpoint retained for compatibility with existing tooling.
+    Returns the full structured payload from the Gemini summarizer.
+    """
+    return _load_or_create_summary_payload(run_id, user)
 
 @app.get("/runs")
 def list_runs(user: User = Depends(current_active_user)):
@@ -448,6 +540,15 @@ def get_run_details(run_id: str, user: User = Depends(current_active_user)):
         cur.execute("SELECT feature_id FROM features WHERE run_id=? LIMIT 1", (run_id,))
         row = cur.fetchone()
         first_feature_id = row[0] if row else None
+        timing_meta = {}
+        if run and run.meta:
+            timing_keys = [
+                "upload_started_at",
+                "upload_queued_at",
+                "embed_completed_at",
+                "time_to_embeddings_sec",
+            ]
+            timing_meta = {k: run.meta.get(k) for k in timing_keys if k in run.meta}
         
         return {
             "run": run,
@@ -455,8 +556,9 @@ def get_run_details(run_id: str, user: User = Depends(current_active_user)):
                 "n_features": n_features,
                 "n_embeddings": n_embeddings
             },
+            "timing": timing_meta or None,
             "links": {
-                "summary": f"/summary/run/{run_id}",
+                "summary": f"/api/runs/{run_id}/summary",
                 "search_example": f"/peptide/search/{run_id}/{first_feature_id}" if first_feature_id else None
             }
         }
@@ -713,6 +815,7 @@ def export_embeddings_v1(run_id: str, user: User = Depends(current_active_user))
         # 2. Fetch raw embeddings for this run
         raw_embeddings = db.get_peptide_embeddings(con, run_id)
         if not raw_embeddings:
+            LOGGER.warning("Export attempted for run %s with no embeddings", run_id)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No peptide embeddings found for run '{run_id}'.",
@@ -722,6 +825,11 @@ def export_embeddings_v1(run_id: str, user: User = Depends(current_active_user))
         canonical_records = export.normalize_to_omics_token_v1(run_id, raw_embeddings)
 
         if not canonical_records:
+            LOGGER.error(
+                "Export normalization produced no records for run %s (raw count=%s)",
+                run_id,
+                len(raw_embeddings),
+            )
             # This means every record failed validation; treat as server error
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -806,13 +914,23 @@ async def export_bundle(payload: ExportBundleRequest, user: User = Depends(curre
 
 @app.post("/auth/api-tokens")
 async def create_api_token(label: Optional[str] = None, user: User = Depends(current_active_user)):
-    token_payload = await auth.create_api_token_for_user(str(user.id), label=label)
+    token_payload = auth.create_api_token_for_user(str(user.id), label=label)
+    if inspect.isawaitable(token_payload):
+        token_payload = await token_payload
+    created_at_raw = token_payload.get("created_at")
+    if isinstance(created_at_raw, str):
+        created_at_iso = created_at_raw
+    elif created_at_raw is not None and hasattr(created_at_raw, "isoformat"):
+        created_at_iso = created_at_raw.isoformat() + "Z"
+    else:
+        created_at_iso = None
+
     # Return plain token once; do not log it
     return {
         "token": token_payload["token"],
         "token_id": token_payload["token_id"],
-        "label": token_payload["label"],
-        "created_at": token_payload["created_at"].isoformat() + "Z",
+        "label": token_payload.get("label"),
+        "created_at": created_at_iso,
     }
 
 
@@ -968,7 +1086,7 @@ class UploadRunRequest(BaseModel):
 
 
 @app.post("/api/runs")
-def create_run_api(payload: UploadRunRequest, background_tasks: BackgroundTasks, user: User = Depends(current_active_user_or_token)):
+def create_run_api(payload: UploadRunRequest, user: User = Depends(current_active_user_or_token)):
     if not payload.features:
         raise HTTPException(status_code=400, detail="Features are required.")
 
@@ -1002,7 +1120,23 @@ def create_run_api(payload: UploadRunRequest, background_tasks: BackgroundTasks,
         con.commit()
 
         if payload.auto_embed:
-            background_tasks.add_task(run_in_threadpool, _embed_run, run_id, str(user.id))
+            try:
+                job = queue_embed_run(run_id, str(user.id))
+                LOGGER.info(
+                    "Dispatched Celery embed_run_task for run %s (user %s) via API (task_id=%s, broker=%s)",
+                    run_id,
+                    user.id,
+                    job.id,
+                    config.CELERY_BROKER_URL,
+                )
+            except Exception as e:
+                LOGGER.exception(
+                    "Failed to dispatch Celery embed_run_task for run %s (user %s): %s",
+                    run_id,
+                    user.id,
+                    e,
+                )
+                raise HTTPException(status_code=500, detail="Failed to queue embedding job.")
 
         return {
             "run_id": run_id,
@@ -1018,28 +1152,6 @@ def create_run_api(payload: UploadRunRequest, background_tasks: BackgroundTasks,
         raise HTTPException(status_code=500, detail="Failed to create run.")
     finally:
         con.close()
-
-# --- Biophysics Logic ---
-from collections import Counter
-
-HYDROPHOBICITY_SCALE = {
-    'A': 1.8, 'R': -4.5, 'N': -3.5, 'D': -3.5, 'C': 2.5, 'Q': -3.5, 'E': -3.5,
-    'G': -0.4, 'H': -3.2, 'I': 4.5, 'L': 3.8, 'K': -3.9, 'M': 1.9, 'F': 2.8,
-    'P': -1.6, 'S': -0.8, 'T': -0.7, 'W': -0.9, 'Y': -1.3, 'V': 4.2
-}
-
-def calculate_properties(sequence: str):
-    if not sequence:
-        return {"hydrophobicity": 0, "molecular_weight": 0, "charge": 0, "length": 0}
-    
-    # Filter for valid amino acids only for hydrophobicity calculation to avoid errors
-    valid_seq = [aa for aa in sequence.upper() if aa in HYDROPHOBICITY_SCALE]
-    hydro = sum(HYDROPHOBICITY_SCALE.get(aa, 0) for aa in valid_seq) / len(valid_seq) if valid_seq else 0
-    
-    mw = len(sequence) * 110
-    pos = sum(sequence.upper().count(aa) for aa in ['K', 'R', 'H'])
-    neg = sum(sequence.upper().count(aa) for aa in ['D', 'E'])
-    return {"hydrophobicity": round(hydro, 2), "molecular_weight": mw, "charge": pos - neg, "length": len(sequence)}
 
 @app.get("/dashboard-data/{run_id}")
 def get_dashboard_data(run_id: str, user: User = Depends(current_active_user)):
@@ -1093,6 +1205,38 @@ def get_dashboard_data(run_id: str, user: User = Depends(current_active_user)):
         }
     finally:
         con.close()
+
+
+@app.get("/api/runs/{run_id}/data")
+def get_run_data(run_id: str):
+    """
+    Serve dashboard-friendly CSV data with fallback to demo dataset.
+    """
+    base_dir = Path("demo_data")
+    requested_path = base_dir / f"{run_id}.csv"
+    fallback_path = base_dir / "demo_tumor_data.csv"
+
+    if requested_path.exists():
+        source_path = requested_path
+    else:
+        source_path = fallback_path
+
+    if not source_path.exists():
+        raise HTTPException(status_code=404, detail="Demo data not found on server.")
+
+    print(f"Serving data for {run_id} (Source: {source_path})")
+
+    try:
+        df = pd.read_csv(source_path)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to read data: {exc}")
+
+    records = df.where(pd.notnull(df), None).to_dict(orient="records")
+    return {
+        "requested_run_id": run_id,
+        "source_file": str(source_path),
+        "records": records,
+    }
 
 # Mount static files (must be after all routes)
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")

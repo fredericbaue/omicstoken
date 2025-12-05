@@ -36,6 +36,7 @@ def get_faiss_ids_path(data_dir: str) -> str:
 def rebuild_faiss_index(
     con: Optional[sqlite3.Connection],
     data_dir: str,
+    triggered_by_run: Optional[str] = None,
 ) -> int:
     """
     Rebuild the global FAISS index from all peptide embeddings in the database.
@@ -60,10 +61,16 @@ def rebuild_faiss_index(
     temp_ids_path = f"{faiss_ids_path}.tmp"
 
     if _REBUILD_LOCK.locked():
-        logging.info("FAISS rebuild already in progress; waiting for lock.")
+        logging.info(
+            "FAISS rebuild already in progress; waiting for lock (triggered_by_run=%s).",
+            triggered_by_run,
+        )
 
     with _REBUILD_LOCK:
-        logging.info("Rebuilding FAISS index...")
+        logging.info(
+            "Rebuilding FAISS index... (triggered_by_run=%s)",
+            triggered_by_run,
+        )
         created_con = False
         if con is None:
             con = db.get_db_connection(data_dir)
@@ -73,7 +80,10 @@ def rebuild_faiss_index(
             rows = db.get_all_embeddings_data(con)
 
             if not rows:
-                logging.info("No embeddings found to build index. Removing any existing index files.")
+                logging.info(
+                    "No embeddings found to build index. Removing any existing index files. (triggered_by_run=%s)",
+                    triggered_by_run,
+                )
                 for path in (faiss_index_path, faiss_ids_path, temp_index_path, temp_ids_path):
                     if os.path.exists(path):
                         os.remove(path)
@@ -103,11 +113,18 @@ def rebuild_faiss_index(
             os.replace(temp_index_path, faiss_index_path)
             os.replace(temp_ids_path, faiss_ids_path)
 
-            logging.info("FAISS index rebuilt with %s vectors.", index.ntotal)
+            logging.info(
+                "FAISS index rebuilt with %s vectors (triggered_by_run=%s).",
+                index.ntotal,
+                triggered_by_run,
+            )
             return index.ntotal
 
         except Exception:
-            logging.exception("Failed to rebuild FAISS index; leaving prior index intact.")
+            logging.exception(
+                "Failed to rebuild FAISS index; leaving prior index intact (triggered_by_run=%s).",
+                triggered_by_run,
+            )
             for path in (temp_index_path, temp_ids_path):
                 if os.path.exists(path):
                     try:

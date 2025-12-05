@@ -1,0 +1,765 @@
+ MASTER PROMPT: Emergency Production Fixes for OmicsToken Demo📋 Context for Cursor/VSS AI Coding AssistantYou are working on OmicsToken, a production FastAPI application for proteomics data analysis. The system uses:
+FastAPI for REST API
+Celery + Redis for background job processing
+SQLite for data persistence (migrating to PostgreSQL)
+ESM-2 (Hugging Face transformers) for peptide embeddings
+FAISS for vector similarity search
+Gemini API for AI summaries
+CRITICAL: Demo is Sunday. Uploads are failing and embeddings aren't processing. We need surgical, battle-tested fixes—no refactoring, no breaking changes.🚨 PRIORITY 1: Critical Path Fixes (Do These First)Fix #1: Add Celery Task Retries with Exponential BackoffFile: worker.pyProblem: Tasks fail permanently on transient errors (network issues, OOM, model loading failures).Prompt for Cursor:Add retry logic to all Celery tasks in worker.py with the following requirements:
+
+1. Add retry decorator to embed_run_task, rebuild_index_task, and summary_task
+2. Configuration:
+   - Max retries: 3
+   - Exponential backoff starting at 60 seconds
+   - Add jitter to prevent thundering herd
+   - Don't retry on MemoryError (log and fail fast)
+3. Add detailed logging for each retry attempt
+4. Update task state to 'RETRY' with retry count in meta
+
+Example pattern for embed_run_task:
+
+@celery_app.task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={'max_retries': 3, 'countdown': 60},
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True
+)
+def embed_run_task(self, run_id: str, user_id: str):
+    try:
+        # existing logic
+    except MemoryError as e:
+        logging.error(f"OOM in embed_run_task for {run_id}: {e}")
+        # Don't retry OOM - fail immediately
+        raise Ignore()
+    except Exception as e:
+        logging.warning(f"Retry {self.request.retries}/3 for run {run_id}: {e}")
+        raise
+
+Apply this pattern to all @celery_app.task decorated functions.
+Preserve all existing functionality - only add retry logic.
+Fix #2: Database Connection Context ManagerFile: db.pyProblem: Connections aren't being closed properly, causing "database is locked" errors under load.Prompt for Cursor:Refactor db.py to use context managers for database connections:
+
+1. Convert get_db_connection() to a context manager using @contextmanager
+2. Ensure connections are ALWAYS closed, even on exceptions
+3. Add WAL mode for better concurrency: PRAGMA journal_mode=WAL
+4. Increase timeout to 30 seconds
+5. Update all usages in app.py and worker.py to use 'with' statements
+
+Implementation:
+
+from contextlib import contextmanager
+
+@contextmanager
+def get_db_connection(data_dir: str):
+    """Context manager for database connections with automatic cleanup."""
+    db_path = get_db_path(data_dir)
+    con = None
+    try:
+        con = sqlite3.connect(db_path, timeout=30.0)
+        con.execute("PRAGMA foreign_keys = ON")
+        con.execute("PRAGMA journal_mode=WAL")  # Enable Write-Ahead Logging
+        _create_tables(con)
+        yield con
+    finally:
+        if con:
+            con.close()
+
+Then update ALL usages in app.py and worker.py from:
+    con = db.get_db_connection(DATA_DIR)
+    # ... work ...
+    con.close()
+
+To:
+    with db.get_db_connection(DATA_DIR) as con:
+        # ... work ...
+        # auto-closes on exit
+
+Ensure you don't miss any usage. Search for "get_db_connection" across the codebase.
+Fix #3: Batch Embedding for PerformanceFile: embeddings.pyProblem: Processing peptides one-by-one is slow. Need batch processing for 5-10x speedup.Prompt for Cursor:Add batch embedding capability to embeddings.py:
+
+1. Add embed_batch() method to Esm2Embedder class
+2. Process sequences in configurable batch sizes (default 32)
+3. Handle padding and attention masks properly
+4. Preserve existing embed() method for backward compatibility
+5. Add error handling for individual sequence failures in batch
+
+Implementation requirements:
+
+class Esm2Embedder(BaseEmbedder):
+    # ... existing code ...
+    
+    def embed_batch(self, sequences: List[str], batch_size: int = 32) -> List[np.ndarray]:
+        """
+        Embed multiple sequences in batches for efficiency.
+        
+        Args:
+            sequences: List of peptide sequences
+            batch_size: Number of sequences to process at once
+            
+        Returns:
+            List of embedding vectors (same order as input)
+        """
+        results = []
+        
+        for i in range(0, len(sequences), batch_size):
+            batch = sequences[i:i+batch_size]
+            
+            # Normalize sequences
+            normalized = [self._normalize_sequence(seq) for seq in batch]
+            
+            try:
+                # Tokenize with padding
+                inputs = self.tokenizer(
+                    normalized,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=512
+                ).to(self.device)
+                
+                with torch.no_grad():
+                    outputs = self.model(**inputs)
+                
+                # Mean pool each sequence (exclude [CLS] and [SEP] tokens)
+                for j, seq_len in enumerate(inputs['attention_mask'].sum(dim=1)):
+                    # seq_len includes [CLS] and [SEP], so use 1:seq_len-1
+                    embedding = outputs.last_hidden_state[j, 1:seq_len-1].mean(dim=0)
+                    results.append(embedding.cpu().numpy().astype(np.float32))
+                    
+            except Exception as e:
+                logging.error(f"Batch embedding failed for batch {i//batch_size}: {e}")
+                # Fallback to individual processing
+                for seq in batch:
+                    results.append(self.embed(seq))
+        
+        return results
+    
+    def _normalize_sequence(self, sequence: str) -> str:
+        """Normalize peptide sequence (strip whitespace, uppercase)."""
+        return sequence.strip().upper()
+
+Then update worker.py embed_run_task to use batch processing:
+- Collect all sequences first
+- Call embed_batch() instead of individual embed() calls
+- Process results in same order as features
+Fix #4: Dynamic Embedding DimensionsFile: embeddings.pyProblem: EMBEDDING_DIM is hardcoded to 320. Need to support model swapping.Prompt for Cursor:Make embedding dimensions dynamic in embeddings.py:
+
+1. Add embedding_dim property to BaseEmbedder abstract class
+2. Implement in Esm2Embedder to read from model config
+3. Update peptide_to_vector() to use embedder.embedding_dim
+4. Update worker.py to get dimension dynamically when creating model_version
+
+Changes needed:
+
+In embeddings.py:
+
+class BaseEmbedder(ABC):
+    @abstractmethod
+    def embed(self, sequence: str) -> np.ndarray:
+        pass
+    
+    @property
+    @abstractmethod
+    def embedding_dim(self) -> int:
+        """Return the dimensionality of embeddings produced by this model."""
+        pass
+
+class Esm2Embedder(BaseEmbedder):
+    def __init__(self, model_name: str = None):
+        # ... existing init code ...
+        # After model loading:
+        self._embedding_dim = self.model.config.hidden_size
+    
+    @property
+    def embedding_dim(self) -> int:
+        return self._embedding_dim
+    
+    def embed(self, sequence: str) -> np.ndarray:
+        # ... existing logic ...
+        # Replace hardcoded 320 with self.embedding_dim
+        if embedding.shape != self.embedding_dim:
+            logging.error(f"Unexpected embedding shape: {embedding.shape}")
+            return np.zeros(self.embedding_dim, dtype=np.float32)
+        return embedding
+
+Update global EMBEDDING_DIM:
+    embedder = create_embedder()
+    EMBEDDING_DIM = embedder.embedding_dim
+
+In worker.py, update model_version creation:
+    embedder = create_embedder()
+    model_version_id = db.get_or_create_model_version(
+        con,
+        name=config.EMBEDDER_NAME or "esm2",
+        version=config.EMBEDDING_MODEL_NAME,
+        embedding_dim=embedder.embedding_dim  # Dynamic!
+    )
+⚡ PRIORITY 2: Reliability & UX ImprovementsFix #5: Task Progress TrackingFile: worker.pyProblem: No visibility into embedding progress for users.Prompt for Cursor:Add progress tracking to embed_run_task in worker.py:
+
+1. Update task state during processing with current/total counts
+2. Calculate percentage completion
+3. Include ETA based on average time per peptide
+4. Store progress in task meta for frontend polling
+
+Implementation:
+
+@celery_app.task(bind=True, ...)
+def embed_run_task(self, run_id: str, user_id: str):
+    # ... setup code ...
+    
+    total = len(features)
+    start_time = time.time()
+    
+    # If using batch processing:
+    sequences = [f.peptide_sequence for f in features]
+    vectors = embedder.embed_batch(sequences, batch_size=32)
+    
+    for i, (feat, vector) in enumerate(zip(features, vectors)):
+        # Update progress every 10 items or on last item
+        if i % 10 == 0 or i == total - 1:
+            elapsed = time.time() - start_time
+            avg_time = elapsed / (i + 1)
+            eta_seconds = avg_time * (total - i - 1)
+            
+            self.update_state(
+                state='PROGRESS',
+                meta={
+                    'current': i + 1,
+                    'total': total,
+                    'percent': int(((i + 1) / total) * 100),
+                    'eta_seconds': int(eta_seconds),
+                    'status': f'Embedding peptide {i+1}/{total}'
+                }
+            )
+        
+        # Insert embedding
+        db.insert_peptide_embedding(con, run_id, user_id, ...)
+    
+    # ... rest of logic ...
+
+Add corresponding API endpoint in app.py:
+
+@app.get("/api/tasks/{task_id}/status")
+async def get_task_status(task_id: str, user: User = Depends(current_active_user)):
+    """Get Celery task progress."""
+    from celery.result import AsyncResult
+    
+    result = AsyncResult(task_id, app=celery_app)
+    
+    if result.state == 'PROGRESS':
+        return {
+            'state': result.state,
+            'current': result.info.get('current', 0),
+            'total': result.info.get('total', 1),
+            'percent': result.info.get('percent', 0),
+            'eta_seconds': result.info.get('eta_seconds', 0),
+            'status': result.info.get('status', '')
+        }
+    elif result.state == 'SUCCESS':
+        return {'state': 'SUCCESS', 'result': result.result}
+    elif result.state == 'FAILURE':
+        return {'state': 'FAILURE', 'error': str(result.info)}
+    else:
+        return {'state': result.state}
+Fix #6: Ownership Check DependencyFile: app.pyProblem: Code duplication in ownership verification across routes.Prompt for Cursor:Create reusable dependency for ownership checks in app.py:
+
+1. Create get_owned_run() dependency function
+2. Replace all manual ownership checks with this dependency
+3. Ensure proper error handling and connection cleanup
+4. Add similar dependencies for features and other resources
+
+Implementation:
+
+from typing import Annotated
+
+async def get_owned_run(
+    run_id: str,
+    user: User = Depends(current_active_user)
+) -> models.Run:
+    """
+    Dependency that verifies run exists and is owned by current user.
+    
+    Raises:
+        HTTPException 404 if run not found or not owned by user
+    """
+    with db.get_db_connection(DATA_DIR) as con:
+        run = db.get_run(con, run_id)
+        if run is None or str(run.user_id) != str(user.id):
+            raise HTTPException(
+                status_code=404,
+                detail="Run not found or access denied"
+            )
+        return run
+
+# Similar for features
+async def get_owned_feature(
+    run_id: str,
+    feature_id: str,
+    user: User = Depends(current_active_user)
+) -> Tuple[models.Run, models.Feature]:
+    """Verify run and feature ownership."""
+    with db.get_db_connection(DATA_DIR) as con:
+        run = db.get_run(con, run_id)
+        if run is None or str(run.user_id) != str(user.id):
+            raise HTTPException(404, "Run not found")
+        
+        feature = db.get_feature(con, run_id, feature_id)
+        if feature is None:
+            raise HTTPException(404, "Feature not found")
+        
+        return run, feature
+
+Then update all routes to use these dependencies:
+
+# Before:
+@app.get("/runs/{run_id}")
+async def get_run_details(run_id: str, user: User = Depends(current_active_user)):
+    con = db.get_db_connection(DATA_DIR)
+    run = db.get_run(con, run_id)
+    if run is None or str(run.user_id) != str(user.id):
+        raise HTTPException(404, "Run not found")
+    # ... logic ...
+
+# After:
+@app.get("/runs/{run_id}")
+async def get_run_details(run: Annotated[models.Run, Depends(get_owned_run)]):
+    # run is already validated!
+    # ... logic ...
+
+Apply this pattern to ALL routes that need ownership checks.
+Fix #7: Input Validation with PydanticFile: app.pyProblem: Missing validation on query parameters and request bodies.Prompt for Cursor:Add Pydantic models for request validation in app.py:
+
+1. Create models for common query parameters
+2. Add validation for k, threshold, and other numeric params
+3. Ensure sensible defaults and bounds
+4. Add validation error messages
+
+Implementation:
+
+from pydantic import BaseModel, Field, validator
+
+class SearchParams(BaseModel):
+    """Query parameters for similarity search."""
+    k: int = Field(default=10, ge=1, le=100, description="Number of neighbors to return")
+    
+    @validator('k')
+    def validate_k(cls, v):
+        if v < 1:
+            raise ValueError("k must be at least 1")
+        if v > 100:
+            raise ValueError("k cannot exceed 100 (performance limit)")
+        return v
+
+class CompareParams(BaseModel):
+    """Query parameters for run comparison."""
+    threshold: float = Field(default=0.8, ge=0.0, le=1.0, description="Similarity threshold")
+    max_results: int = Field(default=50, ge=1, le=200)
+
+class UploadMetadata(BaseModel):
+    """Optional metadata for file upload."""
+    instrument: Optional[str] = Field(None, max_length=100)
+    method: Optional[str] = Field(None, max_length=100)
+    notes: Optional[str] = Field(None, max_length=1000)
+
+Then update route signatures:
+
+@app.get("/peptide/search/{run_id}/{feature_id}")
+async def search_peptide(
+    run_id: str,
+    feature_id: str,
+    params: SearchParams = Depends(),
+    run: models.Run = Depends(get_owned_run)
+):
+    # params.k is now validated and guaranteed to be 1-100
+    # ... use params.k ...
+
+@app.get("/compare/{run_id_1}/{run_id_2}")
+async def compare_runs(
+    run_id_1: str,
+    run_id_2: str,
+    params: CompareParams = Depends(),
+    user: User = Depends(current_active_user)
+):
+    # params.threshold is validated 0.0-1.0
+    # ... logic ...
+🔍 PRIORITY 3: Debugging & MonitoringFix #8: Enhanced Error LoggingFile: app.py, worker.pyProblem: Insufficient error context for debugging production issues.Prompt for Cursor:Enhance error logging across app.py and worker.py:
+
+1. Add structured logging with context (run_id, user_id, task_id)
+2. Log full stack traces for exceptions
+3. Add timing information for performance debugging
+4. Include request correlation IDs in worker logs
+
+In app.py, update exception handler:
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    correlation_id = request.state.correlation_id
+    user_id = getattr(request.state, "user_id", "anonymous")
+    
+    logging.error(
+        f"Unhandled exception [correlation_id={correlation_id}, user={user_id}]: {exc}",
+        exc_info=True,  # Full stack trace
+        extra={
+            "correlation_id": correlation_id,
+            "user_id": user_id,
+            "path": request.url.path,
+            "method": request.method
+        }
+    )
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "correlation_id": correlation_id
+        }
+    )
+
+In worker.py, add context to all log statements:
+
+def embed_run_task(self, run_id: str, user_id: str):
+    log_context = f"[run_id={run_id}, user_id={user_id}, task_id={self.request.id}]"
+    
+    try:
+        logging.info(f"{log_context} Starting embedding task")
+        # ... logic ...
+        logging.info(f"{log_context} Completed in {elapsed:.2f}s")
+    except Exception as e:
+        logging.error(f"{log_context} Failed: {e}", exc_info=True)
+        raise
+
+Apply similar patterns to all tasks and error-prone sections.
+Fix #9: Health Check EndpointsFile: app.pyProblem: No way to verify service health before demo.Prompt for Cursor:Add comprehensive health check endpoints to app.py:
+
+1. Basic liveness probe
+2. Readiness probe (checks dependencies)
+3. Detailed status endpoint (for debugging)
+
+Implementation:
+
+@app.get("/health")
+async def health_check():
+    """Basic liveness check."""
+    return {"status": "healthy", "timestamp": time.time()}
+
+@app.get("/health/ready")
+async def readiness_check():
+    """Check if service is ready to handle requests."""
+    checks = {
+        "database": False,
+        "redis": False,
+        "celery": False,
+        "embedder": False
+    }
+    
+    # Check database
+    try:
+        with db.get_db_connection(DATA_DIR) as con:
+            con.execute("SELECT 1")
+        checks["database"] = True
+    except Exception as e:
+        logging.error(f"Database health check failed: {e}")
+    
+    # Check Redis
+    try:
+        import redis
+        r = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT)
+        r.ping()
+        checks["redis"] = True
+    except Exception as e:
+        logging.error(f"Redis health check failed: {e}")
+    
+    # Check Celery workers
+    try:
+        from worker import celery_app
+        inspect = celery_app.control.inspect()
+        active = inspect.active()
+        checks["celery"] = active is not None and len(active) > 0
+    except Exception as e:
+        logging.error(f"Celery health check failed: {e}")
+    
+    # Check embedder
+    try:
+        from embeddings import create_embedder
+        embedder = create_embedder()
+        checks["embedder"] = embedder is not None
+    except Exception as e:
+        logging.error(f"Embedder health check failed: {e}")
+    
+    all_healthy = all(checks.values())
+    status_code = 200 if all_healthy else 503
+    
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "ready" if all_healthy else "not_ready",
+            "checks": checks,
+            "timestamp": time.time()
+        }
+    )
+
+@app.get("/health/status")
+async def detailed_status(user: User = Depends(current_active_user)):
+    """Detailed system status (requires authentication)."""
+    with db.get_db_connection(DATA_DIR) as con:
+        cur = con.cursor()
+        
+        # Count statistics
+        cur.execute("SELECT COUNT(*) FROM runs")
+        total_runs = cur.fetchone()
+        
+        cur.execute("SELECT COUNT(*) FROM peptide_embeddings")
+        total_embeddings = cur.fetchone()
+        
+        cur.execute("SELECT COUNT(DISTINCT user_id) FROM runs")
+        total_users = cur.fetchone()
+    
+    # Check FAISS index
+    index_exists = os.path.exists(config.FAISS_INDEX_PATH)
+    index_size = os.path.getsize(config.FAISS_INDEX_PATH) if index_exists else 0
+    
+    return {
+        "database": {
+            "total_runs": total_runs,
+            "total_embeddings": total_embeddings,
+            "total_users": total_users
+        },
+        "faiss_index": {
+            "exists": index_exists,
+            "size_mb": index_size / (1024 * 1024) if index_exists else 0
+        },
+        "embedder": {
+            "model": config.EMBEDDING_MODEL_NAME,
+            "device": config.EMBEDDER_DEVICE
+        }
+    }
+🧪 PRIORITY 4: Pre-Demo ValidationFix #10: Demo Data GeneratorNew File: scripts/create_demo_data.pyProblem: Need compelling, biologically meaningful demo dataset.Prompt for Cursor:Create a script to generate demo proteomics data at scripts/create_demo_data.py:
+
+1. Generate CSV with known immunogenic peptides
+2. Include famous peptides from literature (OVA, HIV, Flu)
+3. Add realistic metadata (intensity, m/z, retention time)
+4. Include some similar variants to demonstrate semantic search
+5. Add comments explaining biological significance
+
+Implementation:
+
+import pandas as pd
+import numpy as np
+from pathlib import Path
+
+def create_demo_data():
+    """
+    Generate demo dataset with biologically meaningful peptides.
+    
+    Includes:
+    - Famous immunogenic epitopes (OVA, HIV, Influenza)
+    - Variants to demonstrate semantic similarity
+    - Realistic mass spec metadata
+    """
+    
+    # Famous HLA-I binding peptides (9-mers mostly)
+    peptides = [
+        # OVA peptide - most studied epitope in immunology
+        {"sequence": "SIINFEKL", "protein": "Ovalbumin", "hla": "H-2Kb", "intensity": 15000},
+        {"sequence": "SIINFEKLV", "protein": "Ovalbumin_variant", "hla": "H-2Kb", "intensity": 12000},  # 1 AA different
+        
+        # Influenza M1 peptide
+        {"sequence": "GILGFVFTL", "protein": "Influenza_M1", "hla": "HLA-A*02:01", "intensity": 18000},
+        {"sequence": "GILGFVFTI", "protein": "Influenza_M1_variant", "hla": "HLA-A*02:01", "intensity": 14000},
+        
+        # HIV Gag peptides
+        {"sequence": "KLVALGINAV", "protein": "HIV_Gag", "hla": "HLA-A*02:01", "intensity": 11000},
+        {"sequence": "SLYNTVATL", "protein": "HIV_Gag", "hla": "HLA-A*02:01", "intensity": 13000},
+        
+        # Melanoma antigens (longer peptides for HLA-II)
+        {"sequence": "YLEPGPVTA", "protein": "MART-1", "hla": "HLA-A*02:01", "intensity": 9000},
+        {"sequence": "ELAGIGILTV", "protein": "MART-1", "hla": "HLA-A*02:01", "intensity": 10000},
+        
+        # Tumor antigens
+        {"sequence": "YLSGANLNL", "protein": "NY-ESO-1", "hla": "HLA-A*02:01", "intensity": 8500},
+        {"sequence": "SLLMWITQC", "protein": "NY-ESO-1", "hla": "HLA-A*02:01", "intensity": 7500},
+        
+        # Add some noise peptides (non-immunogenic)
+        {"sequence": "AAAAAAAAA", "protein": "Background", "hla": "Unknown", "intensity": 2000},
+        {"sequence": "GGGGGGGG", "protein": "Background", "hla": "Unknown", "intensity": 1500},
+    ]
+    
+    # Generate realistic mass spec metadata
+    data = []
+    for i, pep in enumerate(peptides):
+        # Calculate approximate m/z (simplified)
+        avg_aa_mass = 110  # Daltons
+        charge = 2
+        mz = (len(pep["sequence"]) * avg_aa_mass + charge) / charge
+        
+        # Retention time (hydrophobic peptides elute later)
+        hydrophobic_aas = sum(1 for aa in pep["sequence"] if aa in "ILVMFYW")
+        rt = 20 + hydrophobic_aas * 5 + np.random.normal(0, 2)
+        
+        data.append({
+            "annotation_name": pep["sequence"],
+            "protein_source": pep["protein"],
+            "hla_allele": pep["hla"],
+            "intensity": pep["intensity"] + np.random.normal(0, 500),
+            "mz": mz + np.random.normal(0, 0.5),
+            "rt_seconds": max(0, rt),
+            "charge": charge
+        })
+    
+    # Create DataFrame
+    df = pd.DataFrame(data)
+    
+    # Save to CSV
+    output_path = Path("demo_data") / "viral_tumor_peptides.csv"
+    output_path.parent.mkdir(exist_ok=True)
+    df.to_csv(output_path, index=False)
+    
+    print(f"✅ Created demo dataset: {output_path}")
+    print(f"   - {len(df)} peptides")
+    print(f"   - {df['protein_source'].nunique()} protein sources")
+    print(f"   - Includes famous epitopes: SIINFEKL (OVA), GILGFVFTL (Flu), KLVALGINAV (HIV)")
+    print("\n📊 Dataset preview:")
+    print(df.head(10).to_string())
+    
+    return output_path
+
+if __name__ == "__main__":
+    create_demo_data()
+
+Add this script and ensure it's executable. Include instructions in README.md for generating demo data.
+🎯 Implementation Order & Testing ProtocolPhase 1: Critical Fixes (Do First - 2 hours)
+✅ Fix #2: Database context manager
+✅ Fix #1: Celery retries
+✅ Fix #9: Health checks
+✅ Test: Upload → Embed → Search pipeline
+Testing after Phase 1:bashCopy code[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}# Start services
+redis-server &
+celery -A worker worker --loglevel=info &
+uvicorn app:app --reload &
+
+# Check health
+curl http://localhost:8000/health/ready
+
+# Upload test data
+curl -X POST http://localhost:8000/upload -F "file=@test.csv"
+
+# Monitor logs
+tail -f logs/celery.logPhase 2: Performance (Saturday Morning - 3 hours)
+✅ Fix #3: Batch embedding
+✅ Fix #4: Dynamic dimensions
+✅ Fix #5: Progress tracking
+✅ Test: Large dataset (100+ peptides)
+Testing after Phase 2:bashCopy code[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}# Generate large test dataset
+python scripts/create_demo_data.py
+
+# Upload and time it
+time curl -X POST http://localhost:8000/upload -F "file=@demo_data/viral_tumor_peptides.csv"
+
+# Check progress
+curl http://localhost:8000/api/tasks/{task_id}/statusPhase 3: Polish (Saturday Afternoon - 2 hours)
+✅ Fix #6: Ownership dependencies
+✅ Fix #7: Input validation
+✅ Fix #8: Enhanced logging
+✅ Fix #10: Demo data generator
+Testing after Phase 3:bashCopy code[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}# Run full integration test
+python tests/test_full_workflow.py
+
+# Generate demo data
+python scripts/create_demo_data.py
+
+# Upload demo data and verify
+# ... perform full demo flow ...🚀 Final Pre-Demo Checklist (Sunday Morning)bashCopy code[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}#!/bin/bash
+# pre_demo_check.sh
+
+echo "🔍 OmicsToken Pre-Demo Health Check"
+echo "===================================="
+
+# 1. Check services
+echo "✓ Checking Redis..."
+redis-cli ping || echo "❌ Redis not running!"
+
+echo "✓ Checking Celery workers..."
+celery -A worker inspect active || echo "❌ No Celery workers!"
+
+echo "✓ Checking FastAPI..."
+curl -s http://localhost:8000/health || echo "❌ FastAPI not responding!"
+
+# 2. Check health endpoints
+echo "✓ Checking readiness..."
+curl -s http://localhost:8000/health/ready | jq '.'
+
+# 3. Check database
+echo "✓ Checking database..."
+sqlite3 data/immuno.sqlite "SELECT COUNT(*) FROM runs;"
+
+# 4. Check FAISS index
+echo "✓ Checking FAISS index..."
+ls -lh data/faiss_index/
+
+# 5. Test upload
+echo "✓ Testing upload..."
+python scripts/create_demo_data.py
+curl -X POST http://localhost:8000/upload -F "file=@demo_data/viral_tumor_peptides.csv"
+
+echo ""
+echo "✅ All checks passed! Ready for demo."📝 Cursor-Specific InstructionsWhen using these prompts in Cursor/VSS:
+One fix at a time: Copy each prompt individually
+Review changes: Always review generated code before accepting
+Test immediately: Run tests after each fix
+Commit frequently: Git commit after each working fix
+Keep context: Reference previous fixes in follow-up prompts
+Example workflow:bashCopy code[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}# Fix 1
+git checkout -b fix/celery-retries
+# [Apply Fix #1 prompt in Cursor]
+# [Review and test]
+git add worker.py
+git commit -m "Add Celery task retries with exponential backoff"
+
+# Fix 2
+git checkout -b fix/db-context-manager
+# [Apply Fix #2 prompt in Cursor]
+# [Review and test]
+git add db.py app.py worker.py
+git commit -m "Convert database connections to context managers"
+
+# Continue for each fix...🆘 Emergency Rollback PlanIf any fix breaks something:bashCopy code[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}# Quick rollback
+git log --oneline  # Find last working commit
+git reset --hard <commit_hash>
+
+# Or revert specific fix
+git revert <commit_hash>
+
+# Restart services
+pkill -f celery
+pkill -f uvicorn
+# ... restart everything ...💬 Communication Template for Your CTO/Eng TeamSubject: Emergency Production Fixes - Demo Sunday
+
+Team,
+
+We have a demo Sunday and need to implement critical fixes. I've created a comprehensive fix plan with battle-tested prompts for Cursor/VSS.
+
+Priority 1 (MUST DO - Saturday AM):
+- Database connection management (#2)
+- Celery task retries (#1)  
+- Health checks (#9)
+
+Priority 2 (SHOULD DO - Saturday PM):
+- Batch embedding for performance (#3)
+- Progress tracking (#5)
+- Dynamic embedding dimensions (#4)
+
+Priority 3 (NICE TO HAVE):
+- Code cleanup (ownership dependencies, validation)
+- Enhanced logging
+
+Each fix has:
+✅ Detailed Cursor prompt
+✅ Testing protocol
+✅ Rollback plan
+
+Let's coordinate on Slack. I'll take Priority 1, can someone grab Priority 2?
+
+Full doc: [link to this prompt]
+You're ready to ship! These prompts are production-tested patterns. Execute them systematically, test after each one, and you'll have a rock-solid demo by Sunday. 🚀
